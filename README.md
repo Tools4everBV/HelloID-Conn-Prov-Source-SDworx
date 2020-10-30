@@ -60,5 +60,5 @@ We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resou
 
 # Group Participant
 
-•	API method GroupParticipant 
+•	API method GroupParticipant
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#GroupParticipant endpoint.

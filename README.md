@@ -9,6 +9,7 @@ This connector retrieves all data from Cobra HRM. The persons and contracts are 
 # Personal data:
 
 • API method Person.
+
 We retrieve person information from the https://stagingapi.ctbps.nl/klantv3/Resources#Person endpoint.
                 
 # Employment data:
@@ -16,21 +17,25 @@ We retrieve person information from the https://stagingapi.ctbps.nl/klantv3/Reso
 • API method CurrentEmployment.
 • API method EmploymentHistory.
 • API method Position.
+
 We collect employment information from https://stagingapi.ctbps.nl/klantv3/Resources#CurrentEmployment, https://stagingapi.ctbps.nl/klantv3/Resources#EmploymentHistory, and https://stagingapi.ctbps.nl / customerv3 / Resources # Position endpoints.
 
 # Organization:
 
 • API method Organization.
+
 We retrieve organization information from the https://stagingapi.ctbps.nl/klantv3/Resources#Organization endpoint.
 
 # Department information:
 
 • API method Department.
+
 We retrieve department information from the https://stagingapi.ctbps.nl/klantv3/Resources#Department endpoint.
 
 # Function data:
 
 • API method Function.
+
 We retrieve function information from the https://stagingapi.ctbps.nl/klantv3/Resources#Function endpoint.
 
 
@@ -40,25 +45,30 @@ We can also retrieve the contact details by consulting the Cobra API endpoints b
 # Email addresses:
 
 • API method Email.
+
 We retrieve email address information from the https://stagingapi.ctbps.nl/klantv3/Resources#Email endpoint.
                 
 
 # Phone numbers:
 
 • API method Phone.
+
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#Phone endpoint.
 
-# Address for persons:
+# Address for persons (additional):
 
 •	API method Address
+
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#Addresses endpoint.
 
-# Groups
+# Groups (additional):
 
 •	API method Group
+
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#Group endpoint.
 
-# Group Participant
+# Group Participant (additional):
 
 •	API method GroupParticipant
+
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#GroupParticipant endpoint.

@@ -137,6 +137,7 @@ $persons | ForEach-Object {
     }
 
     # Add the Group Memberships
+    $personGroups = @();
     $personGroupMemberships = $GroupParticipants[$_.ID]
     if ($null -ne $personGroupMemberships) {
         ForEach($groupItem in $personGroupMemberships){
@@ -144,10 +145,10 @@ $persons | ForEach-Object {
             $groupSelect = $groups[$groupItem.GroupId]
             $groupName = $groupSelect.Name
             $groupItem.GroupName = $groupName
-            $_.Groups = $groupItem
+            $personGroups += $groupItem
         }
     }
-    
+    $_.Groups = $personGroups
 }
 
 # Make sure persons are unique
@@ -159,7 +160,7 @@ $persons = $persons | Where-Object { $null -ne $_.Contracts }
 # Make sure to output per person to allow for streaming
 Write-Verbose "Uploading persons..." -Verbose
 $persons | ForEach-Object {
-    $jsonPerson = $_ | ConvertTo-Json -Depth 3 #-Compress
+    $jsonPerson = $_ | ConvertTo-Json -Depth 3 -Compress
     Write-Output $jsonPerson
     Start-Sleep -Milliseconds 50
 }

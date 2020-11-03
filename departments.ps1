@@ -1,6 +1,6 @@
 # Init auth
-$clientId = "Y4s57bnxy2ZXFKl5F1eURfGAkBZxDJU1qWgE87WmxXJdb4dVpR"
-$clientSecret = "ZmdJ3wkQ/+IhKwCT+HNOUnn8MBSQSobm8teYD/4vfUREIlSDAs3Jt67mj7O8S3kdxtNsg3+NC3oAaEbViM4ngrcjEBFp55UDZKXgYW0fBBcyjklELoe9m4PnOMwPrUAAj+7tDQ=="
+$clientId = "<clientid>"
+$clientSecret = "<clientSecret>"
 
 # Init endpoints
 $uriAuth = "https://api.ctbps.nl/v3/OAuth/Token"

@@ -1,6 +1,6 @@
 # Init auth
-$clientId = "Y4s57bnxy2ZXFKl5F1eURfGAkBZxDJU1qWgE87WmxXJdb4dVpR"
-$clientSecret = "ZmdJ3wkQ/+IhKwCT+HNOUnn8MBSQSobm8teYD/4vfUREIlSDAs3Jt67mj7O8S3kdxtNsg3+NC3oAaEbViM4ngrcjEBFp55UDZKXgYW0fBBcyjklELoe9m4PnOMwPrUAAj+7tDQ=="
+$clientId = "<clientid>"
+$clientSecret = "<clientSecret>"
 
 # Init endpoints
 $uriAuth = "https://api.ctbps.nl/v3/OAuth/Token"
@@ -12,6 +12,8 @@ $uriDepartment = "https://api.ctbps.nl/v3/odata/Department"
 $uriOrganization = "https://api.ctbps.nl/v3/odata/Organization"
 $uriAddresses = "https://api.ctbps.nl/v3/odata/Address"
 $uriTelephone = "https://api.ctbps.nl/v3/odata/Phone"
+$uriGroups = "https://api.ctbps.nl/v3/odata/Group"
+$uriGroupParticipant = "https://api.ctbps.nl/v3/odata/GroupParticipant"
 
 # Enable TLS 1.2
 if ([Net.ServicePointManager]::SecurityProtocol -notmatch "Tls12") {
@@ -60,6 +62,12 @@ try {
 
     $data = Invoke-RestMethod -Method GET -Uri $uriTelephone -Headers $headers
     $telphoneNumbers = $data.value
+
+    $data = Invoke-RestMethod -Method GET -Uri $uriGroups -Headers $headers
+    $Groups = $data.value
+
+    $data = Invoke-RestMethod -Method GET -Uri $uriGroupParticipant -Headers $headers
+    $GroupParticipants = $data.value
     
 }
 catch {
@@ -77,6 +85,8 @@ $departments = $departments | Group-Object ID -AsHashTable
 $organizations = $organizations | Group-Object ID -AsHashTable
 $addresses = $addresses | Group-Object PersonId -AsHashTable
 $telphoneNumbers = $telphoneNumbers | Group-Object PersonId -AsHashTable
+$Groups = $Groups | Group-Object ID -AsHashTable
+$GroupParticipants = $GroupParticipants | Group-Object ParticipantId -AsHashTable
 
 # Extend the persons with employments and required fields
 Write-Verbose "Augmenting persons..." -Verbose
@@ -85,6 +95,7 @@ $persons | Add-Member -MemberType NoteProperty -Name "Addresses" -Value $null -F
 $persons | Add-Member -MemberType NoteProperty -Name "ExternalId" -Value $null -Force
 $persons | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null -Force
 $persons | Add-Member -MemberType NoteProperty -Name "MobileWork" -Value $null -Force
+$persons | Add-Member -MemberType NoteProperty -Name "Groups" -Value $null -Force
 
 $persons | ForEach-Object {
     # Map required fields
@@ -124,6 +135,19 @@ $persons | ForEach-Object {
         $MobileWorkSet = $personMobileWork | Select-Object PhoneNumber -First 1
             $_.MobileWork = $MobileWorkSet.PhoneNumber
     }
+
+    # Add the Group Memberships
+    $personGroupMemberships = $GroupParticipants[$_.ID]
+    if ($null -ne $personGroupMemberships) {
+        ForEach($groupItem in $personGroupMemberships){
+            $groupItem | Add-Member -MemberType NoteProperty -Name "GroupName" -Value $null -Force
+            $groupSelect = $groups[$groupItem.GroupId]
+            $groupName = $groupSelect.Name
+            $groupItem.GroupName = $groupName
+            $_.Groups = $groupItem
+        }
+    }
+    
 }
 
 # Make sure persons are unique
@@ -135,7 +159,7 @@ $persons = $persons | Where-Object { $null -ne $_.Contracts }
 # Make sure to output per person to allow for streaming
 Write-Verbose "Uploading persons..." -Verbose
 $persons | ForEach-Object {
-    $jsonPerson = $_ | ConvertTo-Json -Depth 3 -Compress
+    $jsonPerson = $_ | ConvertTo-Json -Depth 3 #-Compress
     Write-Output $jsonPerson
     Start-Sleep -Milliseconds 50
 }

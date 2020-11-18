@@ -2,7 +2,7 @@
 Cobra HRM by SDworx
 
 # Connector information
-This connector retrieves all data from Cobra HRM. The persons and contracts are all data forwarded. The other endpoints are used to enrich data.
+This connector retrieves the data from Cobra HRM. The persons and contracts are all data forwarded. The other endpoints are used to enrich data. Please keep in mind that the setting of the endpoints can be managed by the application keyuser of Cobra. Some endpoints in this connector will not be usefull on specific client environements.
 
 # Cobra API endpoint resources
 

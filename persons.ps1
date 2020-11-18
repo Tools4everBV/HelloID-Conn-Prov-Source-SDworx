@@ -100,6 +100,7 @@ $currentEmployments = $currentEmployments | Group-Object PersonId -AsHashTable
 $currentAssignments = $currentAssignments | Group-Object PersonId -AsHashTable
 $employmentHistory = $employmentHistory | Group-Object PersonId -AsHashTable
 $functions = $functions | Group-Object Code -AsHashTable
+#$departments = $departments | Group-Object ID -AsHashTable
 $organizations = $organizations | Group-Object ID -AsHashTable
 $addresses = $addresses | Group-Object PersonId -AsHashTable
 $telphoneNumbers = $telphoneNumbers | Group-Object PersonId -AsHashTable
@@ -131,6 +132,15 @@ $persons | ForEach-Object {
     $personContracts = $currentEmployments[$_.ID]
     if ($null -ne $personContracts) {
         foreach($contractitem in $personContracts){
+
+            $fullfunction = $functions[$contractitem.FunctionCode]
+            If($null -ne $fullfunction){
+                $functionLongName = $fullfunction.LongName
+            }
+            if($null -eq $fullfunction){
+                $functionLongName = $null
+            }
+
             $Contract = [PSCustomObject]@{
                 ID = $contractitem.ID
                 PersonId = $contractitem.PersonId
@@ -164,9 +174,10 @@ $persons | ForEach-Object {
                 FunctionId = $contractitem.FunctionId
                 FunctionStartDate = $contractitem.FunctionStartDate
                 FunctionEndDate = $contractitem.FunctionEndDate
-                FunctionStartReason = $contcontractitemract.FunctionStartReason
+                FunctionStartReason = $contractitem.FunctionStartReason
                 FunctionCode = $contractitem.FunctionCode
                 FunctionName = $contractitem.FunctionName
+                FunctionLongName = $functionLongName
                 RoomNumber = $contractitem.RoomNumber
                 DepartmentId = $contractitem.DepartmentId
                 DepartmentCode = $contractitem.DepartmentCode
@@ -177,7 +188,7 @@ $persons | ForEach-Object {
                 CostCenterName = $contractitem.CostCenterName
                 PersonSalaryId = $contractitem.PersonSalaryId
                 SalaryId = $contractitem.SalaryId
-                SalaryStartDate = $contcontractitemract.SalaryStartDate
+                SalaryStartDate = $contractitem.SalaryStartDate
                 SalaryEndDate = $contractitem.SalaryEndDate
                 SalaryTable = $null
                 SalaryReason = $contractitem.SalaryReason
@@ -201,15 +212,7 @@ $persons | ForEach-Object {
                 EmployeeType = $contractitem.EmployeeType
                 LocationName = $contractitem.LocationName
                 LocationId = $contractitem.LocationId
-                }
-
-                $fullfunction = $functions[$contractitem.FunctionCode]
-                If($null -ne $fullfunction){
-                    $value = $fullfunction.LongName
-                    $contractitem | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $value -Force
-                }
-                if($null -eq $fullfunction){
-                    $contractitem | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $null -Force
+                PrimaryContract = 1
                 }
         }      
         $contracts += $Contract
@@ -243,8 +246,17 @@ $persons | ForEach-Object {
                             if ($null -ne $personAssignments) {
                                 foreach($assignment in $personAssignments){
                                     If($additionalDepCode -ne $assignment.DepartmentCode){
+
+                                        $fullfunction = $functions[$assignment.FunctionCode]
+                                        If($null -ne $fullfunction){
+                                            $functionLongName = $fullfunction.LongName
+                                        }
+                                        if($null -eq $fullfunction){
+                                            $functionLongName = $null
+                                        }
+
                                         $assignment = [PSCustomObject]@{
-                                            ID = $assignment.ID
+                                            ID = $assignment.ID + $additionalDepCode
                                             PersonId = $assignment.PersonId
                                             OrganizationId = $assignment.OrganizationId
                                             EpisodeStartDate = $assignment.EpisodeStartDate
@@ -279,6 +291,7 @@ $persons | ForEach-Object {
                                             FunctionStartReason = $assignment.FunctionStartReason
                                             FunctionCode = $assignment.FunctionCode
                                             FunctionName = $assignment.FunctionName
+                                            FunctionLongName = $functionLongName
                                             RoomNumber = $assignment.RoomNumber
                                             DepartmentId = $additionalDepID
                                             DepartmentCode = $additionalDepCode
@@ -313,29 +326,25 @@ $persons | ForEach-Object {
                                             EmployeeType = $assignment.EmployeeType
                                             LocationName = $assignment.LocationName
                                             LocationId = $assignment.LocationId
-                                            }
-                                    
-                                            $fullfunction = $functions[$assignment.FunctionCode]
-                                            If($null -ne $fullfunction){
-                                                $value = $fullfunction.LongName
-                                                $assignment | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $value -Force
-                                            }
-                                            if($null -eq $fullfunction){
-                                                $assignment | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $null -Force
+                                            PrimaryContract = 0
                                             }
                                     }
                                 }
                             }   
-                                $contracts += $assignment
+                            $contracts += $assignment
                             }
                         }
                     }
                 }
             }
         }
-    $_.Contracts = $contracts
 
+    If($contracts.length -gt 0){
+        $_.Contracts = $contracts
+    }
+    
     # Add the addresses
+    $personAddresses = $addresses[$_.ID]
     if ($null -ne $personAddresses) {
         $personHomeAddress = $personAddresses | Where-Object isPostAddress -eq $true
             $_.Addresses = $personHomeAddress

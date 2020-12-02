@@ -100,7 +100,6 @@ $currentEmployments = $currentEmployments | Group-Object PersonId -AsHashTable
 $currentAssignments = $currentAssignments | Group-Object PersonId -AsHashTable
 $employmentHistory = $employmentHistory | Group-Object PersonId -AsHashTable
 $functions = $functions | Group-Object Code -AsHashTable
-#$departments = $departments | Group-Object ID -AsHashTable
 $organizations = $organizations | Group-Object ID -AsHashTable
 $addresses = $addresses | Group-Object PersonId -AsHashTable
 $telphoneNumbers = $telphoneNumbers | Group-Object PersonId -AsHashTable
@@ -121,223 +120,253 @@ $persons | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null 
 $persons | Add-Member -MemberType NoteProperty -Name "MobileWork" -Value $null -Force
 $persons | Add-Member -MemberType NoteProperty -Name "Groups" -Value $null -Force
 
+#Setting Global Vars
+$today = Get-Date
+
 $persons | ForEach-Object {
     # Map required fields
     $_.ExternalId = $_.ID
     $_.DisplayName = "$($_.NameComplete) ($($_.PersonNumber))"
-
+    $activeEmployee = $false
+    
     # Add the contracts with full function name and clear salary values
     $contracts = @();
+    $Contract = @();
+    $counter = 0 
 
-    $personContracts = $currentEmployments[$_.ID]
+    #If($_.PersonNumber -eq "14700"){ #Enable this for testing one person
+    $personContracts = $employmentHistory[$_.ID]
     if ($null -ne $personContracts) {
         foreach($contractitem in $personContracts){
-
-            $fullfunction = $functions[$contractitem.FunctionCode]
-            If($null -ne $fullfunction){
-                $functionLongName = $fullfunction.LongName
-            }
-            if($null -eq $fullfunction){
-                $functionLongName = $null
+            $Contract = @();
+            $counter = $counter + 1
+            $ContractStartDate = $contractitem.EpisodeStartDate
+            if(-not([string]::IsNullOrEmpty($ContractStartDate))){
+                $ContractStart = [datetime]$ContractStartDate
             }
 
-            $Contract = [PSCustomObject]@{
-                ID = $contractitem.ID
-                PersonId = $contractitem.PersonId
-                OrganizationId = $contractitem.OrganizationId
-                EpisodeStartDate = $contractitem.EpisodeStartDate
-                EpisodeEndDate = $contractitem.EpisodeEndDate
-                EmploymentId = $contractitem.EmploymentId
-                EmploymentStatus = $contractitem.EmploymentStatus
-                EmploymentStartDate = $contractitem.EmploymentStartDate
-                AnniversaryEmploymentDate = $contractitem.AnniversaryEmploymentDate
-                EmploymentStartReason = $contractitem.EmploymentStartReason
-                EmploymentEndDate = $contractitem.EmploymentEndDate
-                EmploymentEndReason = $contractitem.EmploymentEndReason
-                ProbationDuration = $contractitem.ProbationDuration
-                ProbationEndDate = $contractitem.ProbationEndDate
-                ResignationPeriod = $contractitem.ResignationPeriod
-                ResignationRequestDate = $contractitem.ResignationRequestDate
-                ContractId = $contractitem.ContractId
-                ContractStartDate = $contractitem.ContractStartDate
-                ContractEndDate = $contractitem.ContractEndDate
-                ContractType = $contractitem.ContractType
-                ContractDuration = $contractitem.ContractDuration
-                ContractIndex = $contractitem.ContractIndex
-                ParttimePercentage = $contractitem.ParttimePercentage
-                DaysPerWeek = $contractitem.DaysPerWeek
-                IsMinMaxWorker = $contractitem.IsMinMaxWorker
-                MinHoursPerWeek = $contractitem.MinHoursPerWeek
-                MaxHoursPerWeek = $contractitem.MaxHoursPerWeek
-                IsOnCallWorker = $contractitem.IsOnCallWorker
-                PersonFunctionId = $contractitem.PersonFunctionId
-                FunctionId = $contractitem.FunctionId
-                FunctionStartDate = $contractitem.FunctionStartDate
-                FunctionEndDate = $contractitem.FunctionEndDate
-                FunctionStartReason = $contractitem.FunctionStartReason
-                FunctionCode = $contractitem.FunctionCode
-                FunctionName = $contractitem.FunctionName
-                FunctionLongName = $functionLongName
-                RoomNumber = $contractitem.RoomNumber
-                DepartmentId = $contractitem.DepartmentId
-                DepartmentCode = $contractitem.DepartmentCode
-                DepartmentName = $contractitem.DepartmentName
-                DepartmentNameShort = $contractitem.DepartmentNameShort
-                CostCenterId = $contractitem.CostCenterId
-                CostCenterCode = $contractitem.CostCenterCode
-                CostCenterName = $contractitem.CostCenterName
-                PersonSalaryId = $contractitem.PersonSalaryId
-                SalaryId = $contractitem.SalaryId
-                SalaryStartDate = $contractitem.SalaryStartDate
-                SalaryEndDate = $contractitem.SalaryEndDate
-                SalaryTable = $null
-                SalaryReason = $contractitem.SalaryReason
-                Scale = $contractitem.Scale
-                Step = $contractitem.Step
-                Period = $contractitem.Period
-                VariantSalary = $null
-                VariantHourlyWage = $contractitem.VariantHourlyWage
-                NettoHourlyWage1 = $contractitem.NettoHourlyWage1
-                NettoHourlyWage2 = $contractitem.NettoHourlyWage2
-                ManagerName = $contractitem.ManagerName
-                ManagerId = $contractitem.ManagerId
-                SubstituteManagerName = $contractitem.SubstituteManagerName
-                SubstituteManagerId = $contractitem.SubstituteManagerId
-                TimeScheduleId = $contractitem.TimeScheduleId
-                TimeScheduleStartDate = $contractitem.TimeScheduleStartDate
-                TimeScheduleEndDate = $contractitem.TimeScheduleEndDate
-                PersonStandardHoursPerWeek = $contractitem.PersonStandardHoursPerWeek
-                ReasonContractChange = $contractitem.ReasonContractChange
-                Payment = $contractitem.Payment
-                EmployeeType = $contractitem.EmployeeType
-                LocationName = $contractitem.LocationName
-                LocationId = $contractitem.LocationId
-                PrimaryContract = 1
+            $ContractEndDate = $contractitem.EpisodeEndDate
+            if(-not([string]::IsNullOrEmpty($ContractEndDate))){
+                $ContractEnd = [datetime]$ContractEndDate
+            } else {
+                $ContractEndDate = "2999-12-31"
+                $ContractEnd = [datetime]$ContractEndDate
+            } 
+            
+            $StartDatePeriod = $ContractStart.AddDays(-45)
+            $EndDatePeriod = $ContractEnd.AddDays(45)
+            If(($StartDatePeriod -lt $today) -And ($EndDatePeriod -gt $today)){
+                $fullfunction = $functions[$contractitem.FunctionCode]
+                If($null -ne $fullfunction){
+                    $functionLongName = $fullfunction.LongName
                 }
-        }      
-        $contracts += $Contract
-    }
+                if($null -eq $fullfunction){
+                    $functionLongName = $null
+                }
 
-    $PersonSalaryEmployments = $SalaryEmployments[$_.ID]
-    if ($null -ne $PersonSalaryEmployments){
-        foreach($employment in $PersonSalaryEmployments){
-            $salaryID = $employment.ID
-            $assignedCC = $CCAllocations[$salaryID]
-            if ($null -ne $assignedCC){
-                foreach($cc in $assignedCC){
-                    $tmp_assignedCC = $null
-                    $tmp_costcenter = $null
-                    $tmp_department = $null
-                    $additionalDepID = $null
-                    $additionalDepCode = $null
-                    $additionalDepName = $null
-                    $additionalDepNameShort = $null
-                    if($null -ne $cc.CompanyCostCenterId){
-                        $tmp_assignedCC = $cc.CompanyCostCenterId
-                        $tmp_costcenter = $CostCenters[$tmp_assignedCC]
-                        If($null -ne $tmp_costcenter){
-                            $costingCode = $tmp_costcenter.CostingCode
-                            $tmp_department = $departments | Where-Object DepartmentCode -eq $costingCode
-                            $additionalDepID = $tmp_department.ID
-                            $additionalDepCode = $tmp_department.DepartmentCode
-                            $additionalDepName = $tmp_Department.Name
-                            $additionalDepNameShort = $tmp_Department.ShortName
-                            $personAssignments = $currentEmployments[$_.ID]
-                            if ($null -ne $personAssignments) {
-                                foreach($assignment in $personAssignments){
-                                    If($additionalDepCode -ne $assignment.DepartmentCode){
+                $activeEmployee = $true
+                $Contract = [PSCustomObject]@{
+                    ID = $contractitem.ID + "_" + $counter + "C"
+                    PersonId = $contractitem.PersonId
+                    OrganizationId = $contractitem.OrganizationId
+                    EpisodeStartDate = $contractitem.EpisodeStartDate
+                    EpisodeEndDate = $contractitem.EpisodeEndDate
+                    EmploymentId = $contractitem.EmploymentId
+                    EmploymentStatus = $contractitem.EmploymentStatus
+                    EmploymentStartDate = $contractitem.EmploymentStartDate
+                    AnniversaryEmploymentDate = $contractitem.AnniversaryEmploymentDate
+                    EmploymentStartReason = $contractitem.EmploymentStartReason
+                    EmploymentEndDate = $contractitem.EmploymentEndDate
+                    EmploymentEndReason = $contractitem.EmploymentEndReason
+                    ProbationDuration = $contractitem.ProbationDuration
+                    ProbationEndDate = $contractitem.ProbationEndDate
+                    ResignationPeriod = $contractitem.ResignationPeriod
+                    ResignationRequestDate = $contractitem.ResignationRequestDate
+                    ContractId = $contractitem.ContractId
+                    ContractStartDate = $contractitem.ContractStartDate
+                    ContractEndDate = $contractitem.ContractEndDate
+                    ContractType = $contractitem.ContractType
+                    ContractDuration = $contractitem.ContractDuration
+                    ContractIndex = $contractitem.ContractIndex
+                    ParttimePercentage = $contractitem.ParttimePercentage
+                    DaysPerWeek = $contractitem.DaysPerWeek
+                    IsMinMaxWorker = $contractitem.IsMinMaxWorker
+                    MinHoursPerWeek = $contractitem.MinHoursPerWeek
+                    MaxHoursPerWeek = $contractitem.MaxHoursPerWeek
+                    IsOnCallWorker = $contractitem.IsOnCallWorker
+                    PersonFunctionId = $contractitem.PersonFunctionId
+                    FunctionId = $contractitem.FunctionId
+                    FunctionStartDate = $contractitem.FunctionStartDate
+                    FunctionEndDate = $contractitem.FunctionEndDate
+                    FunctionStartReason = $contractitem.FunctionStartReason
+                    FunctionCode = $contractitem.FunctionCode
+                    FunctionName = $contractitem.FunctionName
+                    FunctionLongName = $functionLongName
+                    RoomNumber = $contractitem.RoomNumber
+                    DepartmentId = $contractitem.DepartmentId
+                    DepartmentCode = $contractitem.DepartmentCode
+                    DepartmentName = $contractitem.DepartmentName
+                    DepartmentNameShort = $contractitem.DepartmentNameShort
+                    CostCenterId = $contractitem.CostCenterId
+                    CostCenterCode = $contractitem.CostCenterCode
+                    CostCenterName = $contractitem.CostCenterName
+                    PersonSalaryId = $contractitem.PersonSalaryId
+                    SalaryId = $contractitem.SalaryId
+                    SalaryStartDate = $contractitem.SalaryStartDate
+                    SalaryEndDate = $contractitem.SalaryEndDate
+                    SalaryTable = $null
+                    SalaryReason = $contractitem.SalaryReason
+                    Scale = $contractitem.Scale
+                    Step = $contractitem.Step
+                    Period = $contractitem.Period
+                    VariantSalary = $null
+                    VariantHourlyWage = $contractitem.VariantHourlyWage
+                    NettoHourlyWage1 = $contractitem.NettoHourlyWage1
+                    NettoHourlyWage2 = $contractitem.NettoHourlyWage2
+                    ManagerName = $contractitem.ManagerName
+                    ManagerId = $contractitem.ManagerId
+                    SubstituteManagerName = $contractitem.SubstituteManagerName
+                    SubstituteManagerId = $contractitem.SubstituteManagerId
+                    TimeScheduleId = $contractitem.TimeScheduleId
+                    TimeScheduleStartDate = $contractitem.TimeScheduleStartDate
+                    TimeScheduleEndDate = $contractitem.TimeScheduleEndDate
+                    PersonStandardHoursPerWeek = $contractitem.PersonStandardHoursPerWeek
+                    ReasonContractChange = $contractitem.ReasonContractChange
+                    Payment = $contractitem.Payment
+                    EmployeeType = $contractitem.EmployeeType
+                    LocationName = $contractitem.LocationName
+                    LocationId = $contractitem.LocationId
+                    PrimaryContract = 1
+                    }
+            } $contracts += $Contract
+    } 
+ }
+#} #Enable this for testing one person
 
-                                        $fullfunction = $functions[$assignment.FunctionCode]
-                                        If($null -ne $fullfunction){
-                                            $functionLongName = $fullfunction.LongName
-                                        }
-                                        if($null -eq $fullfunction){
-                                            $functionLongName = $null
-                                        }
 
-                                        $assignment = [PSCustomObject]@{
-                                            ID = $assignment.ID + $additionalDepCode
-                                            PersonId = $assignment.PersonId
-                                            OrganizationId = $assignment.OrganizationId
-                                            EpisodeStartDate = $assignment.EpisodeStartDate
-                                            EpisodeEndDate = $assignment.EpisodeEndDate
-                                            EmploymentId = $assignment.EmploymentId
-                                            EmploymentStatus = $assignment.EmploymentStatus
-                                            EmploymentStartDate = $assignment.EmploymentStartDate
-                                            AnniversaryEmploymentDate = $assignment.AnniversaryEmploymentDate
-                                            EmploymentStartReason = $assignment.EmploymentStartReason
-                                            EmploymentEndDate = $assignment.EmploymentEndDate
-                                            EmploymentEndReason = $assignment.EmploymentEndReason
-                                            ProbationDuration = $assignment.ProbationDuration
-                                            ProbationEndDate = $assignment.ProbationEndDate
-                                            ResignationPeriod = $assignment.ResignationPeriod
-                                            ResignationRequestDate = $assignment.ResignationRequestDate
-                                            ContractId = $assignment.ContractId
-                                            ContractStartDate = $assignment.ContractStartDate
-                                            ContractEndDate = $assignment.ContractEndDate
-                                            ContractType = $assignment.ContractType
-                                            ContractDuration = $assignment.ContractDuration
-                                            ContractIndex = $assignment.ContractIndex
-                                            ParttimePercentage = $assignment.ParttimePercentage
-                                            DaysPerWeek = $assignment.DaysPerWeek
-                                            IsMinMaxWorker = $assignment.IsMinMaxWorker
-                                            MinHoursPerWeek = $assignment.MinHoursPerWeek
-                                            MaxHoursPerWeek = $assignment.MaxHoursPerWeek
-                                            IsOnCallWorker = $assignment.IsOnCallWorker
-                                            PersonFunctionId = $assignment.PersonFunctionId
-                                            FunctionId = $assignment.FunctionId
-                                            FunctionStartDate = $assignment.FunctionStartDate
-                                            FunctionEndDate = $assignment.FunctionEndDate
-                                            FunctionStartReason = $assignment.FunctionStartReason
-                                            FunctionCode = $assignment.FunctionCode
-                                            FunctionName = $assignment.FunctionName
-                                            FunctionLongName = $functionLongName
-                                            RoomNumber = $assignment.RoomNumber
-                                            DepartmentId = $additionalDepID
-                                            DepartmentCode = $additionalDepCode
-                                            DepartmentName = $additionalDepName
-                                            DepartmentNameShort = $additionalDepNameShort
-                                            CostCenterId = $assignment.CostCenterId
-                                            CostCenterCode = $assignment.CostCenterCode
-                                            CostCenterName = $assignment.CostCenterName
-                                            PersonSalaryId = $assignment.PersonSalaryId
-                                            SalaryId = $assignment.SalaryId
-                                            SalaryStartDate = $assignment.SalaryStartDate
-                                            SalaryEndDate = $assignment.SalaryEndDate
-                                            SalaryTable = $null
-                                            SalaryReason = $assignment.SalaryReason
-                                            Scale = $assignment.Scale
-                                            Step = $assignment.Step
-                                            Period = $assignment.Period
-                                            VariantSalary = $null
-                                            VariantHourlyWage = $assignment.VariantHourlyWage
-                                            NettoHourlyWage1 = $assignment.NettoHourlyWage1
-                                            NettoHourlyWage2 = $assignment.NettoHourlyWage2
-                                            ManagerName = $assignment.ManagerName
-                                            ManagerId = $assignment.ManagerId
-                                            SubstituteManagerName = $assignment.SubstituteManagerName
-                                            SubstituteManagerId = $assignment.SubstituteManagerId
-                                            TimeScheduleId = $assignment.TimeScheduleId
-                                            TimeScheduleStartDate = $assignment.TimeScheduleStartDate
-                                            TimeScheduleEndDate = $assignment.TimeScheduleEndDate
-                                            PersonStandardHoursPerWeek = $assignment.PersonStandardHoursPerWeek
-                                            ReasonContractChange = $assignment.ReasonContractChange
-                                            Payment = $assignment.Payment
-                                            EmployeeType = $assignment.EmployeeType
-                                            LocationName = $assignment.LocationName
-                                            LocationId = $assignment.LocationId
-                                            PrimaryContract = 0
+    If($activeEmployee -eq $true){
+        $PersonSalaryEmployments = $SalaryEmployments[$_.ID]
+        if ($null -ne $PersonSalaryEmployments){
+            foreach($employment in $PersonSalaryEmployments){
+                    $salaryID = $employment.ID
+                    $assignedCC = $CCAllocations[$salaryID]
+                    if ($null -ne $assignedCC){
+                        foreach($cc in $assignedCC){
+                            $tmp_assignedCC = $null
+                            $tmp_costcenter = $null
+                            $tmp_department = $null
+                            $additionalDepID = $null
+                            $additionalDepCode = $null
+                            $additionalDepName = $null
+                            $additionalDepNameShort = $null
+                            if($null -ne $cc.CompanyCostCenterId){
+                                $tmp_assignedCC = $cc.CompanyCostCenterId
+                                $tmp_costcenter = $CostCenters[$tmp_assignedCC]
+                                If($null -ne $tmp_costcenter){
+                                    $costingCode = $tmp_costcenter.CostingCode
+                                    $tmp_department = $departments | Where-Object DepartmentCode -eq $costingCode
+                                    $additionalDepID = $tmp_department.ID
+                                    $additionalDepCode = $tmp_department.DepartmentCode
+                                    $additionalDepName = $tmp_Department.Name
+                                    $additionalDepNameShort = $tmp_Department.ShortName
+                                    $personAssignments = $currentEmployments[$_.ID]
+                                    if ($null -ne $personAssignments) {
+                                        foreach($assignment in $personAssignments){
+                                            If($additionalDepCode -ne $assignment.DepartmentCode){
+        
+                                                $fullfunction = $functions[$assignment.FunctionCode]
+                                                If($null -ne $fullfunction){
+                                                    $functionLongName = $fullfunction.LongName
+                                                }
+                                                if($null -eq $fullfunction){
+                                                    $functionLongName = $null
+                                                }
+        
+                                                $assignment = [PSCustomObject]@{
+                                                    ID = $assignment.ID + $additionalDepCode
+                                                    PersonId = $assignment.PersonId
+                                                    OrganizationId = $assignment.OrganizationId
+                                                    EpisodeStartDate = $assignment.EpisodeStartDate
+                                                    EpisodeEndDate = $assignment.EpisodeEndDate
+                                                    EmploymentId = $assignment.EmploymentId
+                                                    EmploymentStatus = $assignment.EmploymentStatus
+                                                    EmploymentStartDate = $assignment.EmploymentStartDate
+                                                    AnniversaryEmploymentDate = $assignment.AnniversaryEmploymentDate
+                                                    EmploymentStartReason = $assignment.EmploymentStartReason
+                                                    EmploymentEndDate = $assignment.EmploymentEndDate
+                                                    EmploymentEndReason = $assignment.EmploymentEndReason
+                                                    ProbationDuration = $assignment.ProbationDuration
+                                                    ProbationEndDate = $assignment.ProbationEndDate
+                                                    ResignationPeriod = $assignment.ResignationPeriod
+                                                    ResignationRequestDate = $assignment.ResignationRequestDate
+                                                    ContractId = $assignment.ContractId
+                                                    ContractStartDate = $assignment.ContractStartDate
+                                                    ContractEndDate = $assignment.ContractEndDate
+                                                    ContractType = $assignment.ContractType
+                                                    ContractDuration = $assignment.ContractDuration
+                                                    ContractIndex = $assignment.ContractIndex
+                                                    ParttimePercentage = $assignment.ParttimePercentage
+                                                    DaysPerWeek = $assignment.DaysPerWeek
+                                                    IsMinMaxWorker = $assignment.IsMinMaxWorker
+                                                    MinHoursPerWeek = $assignment.MinHoursPerWeek
+                                                    MaxHoursPerWeek = $assignment.MaxHoursPerWeek
+                                                    IsOnCallWorker = $assignment.IsOnCallWorker
+                                                    PersonFunctionId = $assignment.PersonFunctionId
+                                                    FunctionId = $assignment.FunctionId
+                                                    FunctionStartDate = $assignment.FunctionStartDate
+                                                    FunctionEndDate = $assignment.FunctionEndDate
+                                                    FunctionStartReason = $assignment.FunctionStartReason
+                                                    FunctionCode = $assignment.FunctionCode
+                                                    FunctionName = $assignment.FunctionName
+                                                    FunctionLongName = $functionLongName
+                                                    RoomNumber = $assignment.RoomNumber
+                                                    DepartmentId = $additionalDepID
+                                                    DepartmentCode = $additionalDepCode
+                                                    DepartmentName = $additionalDepName
+                                                    DepartmentNameShort = $additionalDepNameShort
+                                                    CostCenterId = $assignment.CostCenterId
+                                                    CostCenterCode = $assignment.CostCenterCode
+                                                    CostCenterName = $assignment.CostCenterName
+                                                    PersonSalaryId = $assignment.PersonSalaryId
+                                                    SalaryId = $assignment.SalaryId
+                                                    SalaryStartDate = $assignment.SalaryStartDate
+                                                    SalaryEndDate = $assignment.SalaryEndDate
+                                                    SalaryTable = $null
+                                                    SalaryReason = $assignment.SalaryReason
+                                                    Scale = $assignment.Scale
+                                                    Step = $assignment.Step
+                                                    Period = $assignment.Period
+                                                    VariantSalary = $null
+                                                    VariantHourlyWage = $assignment.VariantHourlyWage
+                                                    NettoHourlyWage1 = $assignment.NettoHourlyWage1
+                                                    NettoHourlyWage2 = $assignment.NettoHourlyWage2
+                                                    ManagerName = $assignment.ManagerName
+                                                    ManagerId = $assignment.ManagerId
+                                                    SubstituteManagerName = $assignment.SubstituteManagerName
+                                                    SubstituteManagerId = $assignment.SubstituteManagerId
+                                                    TimeScheduleId = $assignment.TimeScheduleId
+                                                    TimeScheduleStartDate = $assignment.TimeScheduleStartDate
+                                                    TimeScheduleEndDate = $assignment.TimeScheduleEndDate
+                                                    PersonStandardHoursPerWeek = $assignment.PersonStandardHoursPerWeek
+                                                    ReasonContractChange = $assignment.ReasonContractChange
+                                                    Payment = $assignment.Payment
+                                                    EmployeeType = $assignment.EmployeeType
+                                                    LocationName = $assignment.LocationName
+                                                    LocationId = $assignment.LocationId
+                                                    PrimaryContract = 0
+                                                    }
                                             }
+                                        }
+                                    }   
+                                    $contracts += $assignment
                                     }
                                 }
-                            }   
-                            $contracts += $assignment
                             }
                         }
-                    }
                 }
-            }
-        }
+                }
+    }
+    
 
     If($contracts.length -gt 0){
         $_.Contracts = $contracts
@@ -376,13 +405,14 @@ $persons | ForEach-Object {
     $personEmailAddress = $Emailaddresses[$_.ID]
     if ($null -ne $personEmailAddress) {
         ForEach($mail in $personEmailAddress){
-            If($null -eq $mail.EmailType -And $mail.EmailAddress.length -gt 1){
-                $emailAddressSelected = $mail.EmailAddress
-                $_.PrivateEmailAddress = $emailAddressSelected
-            }
+            If(($mail.EmailAddress.length -gt 1) -And ($mail.EmailAddress -notcontains "@timon.nl")) {
+                    $emailAddressSelected = $mail.EmailAddress
+                    $_.PrivateEmailAddress = $emailAddressSelected
+                }
         }
     }
 }
+
 
 # Make sure persons are unique
 $persons = $persons | Sort-Object ExternalId -Unique

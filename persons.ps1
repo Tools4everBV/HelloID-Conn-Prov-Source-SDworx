@@ -120,7 +120,7 @@ $persons | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null 
 $persons | Add-Member -MemberType NoteProperty -Name "MobileWork" -Value $null -Force
 $persons | Add-Member -MemberType NoteProperty -Name "Groups" -Value $null -Force
 
-#Setting Global Vars
+#Setting Global Vars 
 $today = Get-Date
 
 $persons | ForEach-Object {

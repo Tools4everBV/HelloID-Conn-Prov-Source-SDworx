@@ -132,6 +132,7 @@ $persons | ForEach-Object {
     # Add the contracts with full function name and clear salary values
     $contracts = @();
     $Contract = @();
+    $assignment = @();
     $counter = 0 
 
     #If($_.PersonNumber -eq "14700"){ #Enable this for testing one person

@@ -72,3 +72,6 @@ We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resou
 •	API method GroupParticipant
 
 We retrieve telephone numbers from the https://stagingapi.ctbps.nl/klantv3/Resources#GroupParticipant endpoint.
+
+# HelloID Docs
+The official HelloID documentation can be found at: https://docs.helloid.com/

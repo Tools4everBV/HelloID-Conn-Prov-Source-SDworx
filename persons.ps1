@@ -167,7 +167,7 @@ $persons | ForEach-Object {
 
                 $activeEmployee = $true
                 $Contract = [PSCustomObject]@{
-                    ID = $contractitem.ID + "_" + $counter + "C"
+                    ID = $contractitem.ContractId + "_" + $counter + "C"
                     PersonId = $contractitem.PersonId
                     OrganizationId = $contractitem.OrganizationId
                     EpisodeStartDate = $contractitem.EpisodeStartDate
@@ -284,7 +284,7 @@ $persons | ForEach-Object {
                                                 }
         
                                                 $assignment = [PSCustomObject]@{
-                                                    ID = $assignment.ID + $additionalDepCode
+                                                    ID = $assignment.ContractId + $additionalDepCode
                                                     PersonId = $assignment.PersonId
                                                     OrganizationId = $assignment.OrganizationId
                                                     EpisodeStartDate = $assignment.EpisodeStartDate

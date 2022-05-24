@@ -402,16 +402,7 @@ $persons | ForEach-Object {
     }
     $_.Groups = $personGroups
 
-    # Add the private emailaddresses
-    $personEmailAddress = $Emailaddresses[$_.ID]
-    if ($null -ne $personEmailAddress) {
-        ForEach($mail in $personEmailAddress){
-            If(($mail.EmailAddress.length -gt 1) -And ($mail.EmailAddress -notcontains "@timon.nl")) {
-                    $emailAddressSelected = $mail.EmailAddress
-                    $_.PrivateEmailAddress = $emailAddressSelected
-                }
-        }
-    }
+
 }
 
 

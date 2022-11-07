@@ -121,6 +121,38 @@
             }
         },
         {
+            "name": "Custom.displayName",
+            "mode": "field",
+            "value": "NameAddressInformal",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Custom.employeeNumber",
+            "mode": "field",
+            "value": "ID",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Custom.TIMExternalId",
+            "mode": "field",
+            "value": "TIMExternalId",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Custom.TIMOfficeLicense",
+            "mode": "field",
+            "value": "Office365License",
+            "validation": {
+                "required": false
+            }
+        },
+        {
             "name": "Details.BirthDate",
             "mode": "field",
             "value": "DateOfBirth",
@@ -203,25 +235,9 @@
     ],
     "contractMappings": [
         {
-            "name": "CostCenter.Code",
-            "mode": "field",
-            "value": "CostCenterCode",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "CostCenter.ExternalId",
-            "mode": "field",
-            "value": "CostCenterId",
-            "validation": {
-                "required": false
-            }
-        },
-        {
             "name": "CostCenter.Name",
             "mode": "field",
-            "value": "CostCenterName",
+            "value": "DepartmentCode",
             "validation": {
                 "required": false
             }
@@ -229,7 +245,7 @@
         {
             "name": "Department.DisplayName",
             "mode": "field",
-            "value": "Department.Name",
+            "value": "DepartmentName",
             "validation": {
                 "required": false
             }
@@ -237,7 +253,7 @@
         {
             "name": "Department.ExternalId",
             "mode": "field",
-            "value": "Department.DepartmentCode",
+            "value": "DepartmentCode",
             "validation": {
                 "required": false
             }
@@ -301,7 +317,7 @@
         {
             "name": "Title.Code",
             "mode": "field",
-            "value": "Function.Code",
+            "value": "FunctionName",
             "validation": {
                 "required": false
             }
@@ -309,7 +325,7 @@
         {
             "name": "Title.ExternalId",
             "mode": "field",
-            "value": "Function.ID",
+            "value": "FunctionId",
             "validation": {
                 "required": false
             }
@@ -317,7 +333,7 @@
         {
             "name": "Title.Name",
             "mode": "field",
-            "value": "Function.LongName",
+            "value": "FunctionLongName",
             "validation": {
                 "required": false
             }

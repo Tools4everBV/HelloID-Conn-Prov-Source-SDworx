@@ -121,38 +121,6 @@
             }
         },
         {
-            "name": "Custom.displayName",
-            "mode": "field",
-            "value": "NameAddressInformal",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Custom.employeeNumber",
-            "mode": "field",
-            "value": "ID",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Custom.TIMExternalId",
-            "mode": "field",
-            "value": "TIMExternalId",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Custom.TIMOfficeLicense",
-            "mode": "field",
-            "value": "Office365License",
-            "validation": {
-                "required": false
-            }
-        },
-        {
             "name": "Details.BirthDate",
             "mode": "field",
             "value": "DateOfBirth",

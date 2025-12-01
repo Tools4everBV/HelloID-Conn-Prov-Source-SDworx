@@ -1,71 +1,148 @@
-# Init auth
-$clientId = "<YOUR CLIENTID"
-$clientSecret = "YOUR CLIENTSECRET"
+##################################################
+# HelloID-Conn-Prov-Source-SDworx-Cobra-Department
+#
+# Version: 2.0.0
+##################################################
 
-# Init endpoints
-$uriAuth = "https://api.ctbps.nl/v3/OAuth/Token"
-$uriDepartment = "https://api.ctbps.nl/v3/odata/Department"
-$uriPerson = "https://api.ctbps.nl/v3/odata/Person"
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-# Enable TLS 1.2
-if ([Net.ServicePointManager]::SecurityProtocol -notmatch "Tls12") {
-    [Net.ServicePointManager]::SecurityProtocol += [Net.SecurityProtocolType]::Tls12
+# Initialize default value's
+$config = $configuration | ConvertFrom-Json
+$baseUrl = $config.BaseUrl
+$clientId = $config.ClientId
+$clientSecret = $config.Apikey
+
+# Set debug logging
+switch ($($config.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
 }
 
-Write-Verbose "Starting..." -Verbose
-
-$pair = "${clientId}:${clientSecret}"
-$bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-$base64 = [System.Convert]::ToBase64String($bytes)
-$basicAuthValue = "Basic $base64"
-$headers = @{ "Authorization" = $basicAuthValue; }
-$body = @{ "scope" = "customer"; "grant_type" = "client_credentials"; }
-
-Write-Verbose "Authenticating..." -Verbose
-
-$result = Invoke-WebRequest -Method POST -Uri $uriAuth -Headers $headers -Body $body -ContentType "application/x-www-form-urlencoded"
-$content = $result.Content | ConvertFrom-Json
-$accessToken = $content.access_token
-$headers = @{ "Authorization" = "Bearer $accessToken" }
-
-Write-Verbose "Retrieving data from endpoints..." -Verbose
-
-try {
-    $data = Invoke-RestMethod -Method GET -Uri $uriDepartment -Headers $headers
-    $departments = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriPerson -Headers $headers
-    $persons = $data.value
-}
-catch {
-    Write-Verbose $_
-    Write-Verbose "Failure in retrieving data from endpoints, aborting..." -Verbose
-    exit
-}
-
-$persons = $persons | Group-Object Id -AsHashTable
-
-# Extend the persons with employments and required fields
-Write-Verbose "Augmenting departments..." -Verbose
-$departments | Add-Member -MemberType NoteProperty -Name "ExternalId" -Value $null -Force
-$departments | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null -Force
-$departments | Add-Member -MemberType NoteProperty -Name "ManagerExternalId" -Value $null -Force
-$departments | Add-Member -MemberType NoteProperty -Name "ParentExternalId" -Value $null -Force
-$departments | ForEach-Object {
-    $_.ExternalId = $_.DepartmentCode
-    $_.DisplayName = $_.Name
-    $_.Name = $_.ShortName
-
-    if ($null -ne $_.ManagerId){
-    $personsManager = $persons[$_.ManagerId]
-    if ($null -ne $personsManager) {
-        $_.ManagerExternalId = $personsManager.PersonNumber
+#region functions
+function Resolve-SDworkx-CobraError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
+        try {
+            $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
+            $httpErrorObj.FriendlyMessage = "[$($errorDetailsObject.error)] [$($errorDetailsObject.error_description)]"
+            if ($httpErrorObj.FriendlyMessage -eq '[] []') {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.'odata.error'.message.value
+            }
+        }
+        catch {
+            $httpErrorObj.FriendlyMessage = "[$($httpErrorObj.ErrorDetails)] [$($_.Exception.Message)]"
+        }
+        Write-Output $httpErrorObj
     }
 }
-    $_.ParentExternalId = $_.ParentDepartmentId
-}
+#endregion
 
-# Export the json
-Write-Verbose "Uploading departments..." -Verbose
-$json = $departments | ConvertTo-Json -Depth 3
-Write-Output $json
+try {
+    $actionMessage = "retrieving access token"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${clientId}:${clientSecret}")
+    $base64 = [System.Convert]::ToBase64String($bytes)
+    $tokenHeaders = @{ Authorization = "Basic $base64" }
+    $body = @{ "scope" = "customer"; "grant_type" = "client_credentials"; }
+    $splatAccessTokenParams = @{
+        Method      = 'POST'
+        Uri         = "$baseUrl/OAuth/Token"
+        Headers     = $tokenHeaders
+        Body        = $body
+        ContentType = 'application/x-www-form-urlencoded'
+    }
+    $tokenResponse = (Invoke-WebRequest @splatAccessTokenParams).content | ConvertFrom-Json
+    $accessToken = $tokenResponse.access_token 
+    $headers = @{
+        Authorization = "Bearer $accessToken"
+        Accept        = "application/json"
+    }
+    Write-Verbose "Access token retrieved successfully."
+
+    $actionMessage = "retrieving persons"
+    $splatPersonsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Person"
+        Headers = $headers
+    }
+    $persons = (Invoke-RestMethod @splatPersonsParams).value
+    $personsGrouped = $persons | Group-Object -Property Id -AsHashTable
+    Write-Information "Retrieved [$($persons.Count)] persons successfully."
+
+    $actionMessage = "retrieving departments"
+    $splatDepartmentsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Department"
+        Headers = $headers
+    }
+    $departments = (Invoke-RestMethod @splatDepartmentsParams).value
+    Write-Information "Retrieved [$($departments.Count)] departments successfully."
+
+    $actionMessage = "enhancing and exporting department objects to HelloID"
+    # Set counter to keep track of actual exported department objects
+    $exportedDepartments = 0
+
+    foreach ($department in $departments) {
+        $managerId = $department.ManagerId
+        if ($null -ne $managerId) {
+            $manager = $personsGrouped[$managerId]
+            if ($null -ne $manager) {
+                $managerPersonNumber = $manager.PersonNumber
+            }
+            else {
+                $managerPersonNumber = $null
+            }
+        }
+
+        # Create department object to ensure only allowed properties are send to HelloID
+        $departmentObject = [PSCustomObject]@{
+            ExternalId        = $department.DepartmentCode
+            DisplayName       = $department.Name
+            ManagerExternalId = $managerPersonNumber
+            ParentExternalId  = $department.ParentDepartmentId
+        }
+
+        # Sanitize and export the json
+        Write-Output $departmentObject | ConvertTo-Json -Depth 10
+
+        # Updated counter to keep track of actual exported department objects
+        $exportedDepartments++
+    }
+    Write-Information "Successfully enhanced and exported department objects to HelloID. Result count: $($exportedDepartments)"
+    Write-Warning "Successfully enhanced and exported department objects to HelloID. Result count: $($exportedDepartments)"
+}
+catch {
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-SDworkx-CobraError -ErrorObject $ex
+        Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        Write-Error "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+    }
+    else {
+        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    }
+}

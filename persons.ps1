@@ -1,423 +1,382 @@
-# Init auth
-$clientId = "<YOUR CLIENTID"
-$clientSecret = "YOUR CLIENTSECRET"
+##################################################
+# HelloID-Conn-Prov-Source-SDworx-Cobra-Person
+#
+# Version: 2.0.0
+##################################################
 
-# Init endpoints
-$uriAuth = "https://api.ctbps.nl/v3/OAuth/Token"
-$uriPerson = "https://api.ctbps.nl/v3/odata/Person"
-$uriCurrentEmployment = "https://api.ctbps.nl/v3/odata/CurrentEmployment"
-$uriEmploymentHistory = "https://api.ctbps.nl/v3/odata/EmploymentHistory"
-$uriFunction = "https://api.ctbps.nl/v3/odata/Function"
-$uriDepartment = "https://api.ctbps.nl/v3/odata/Department"
-$uriOrganization = "https://api.ctbps.nl/v3/odata/Organization"
-$uriAddresses = "https://api.ctbps.nl/v3/odata/Address"
-$uriTelephone = "https://api.ctbps.nl/v3/odata/Phone"
-$uriGroups = "https://api.ctbps.nl/v3/odata/Group"
-$uriGroupParticipant = "https://api.ctbps.nl/v3/odata/GroupParticipant"
-$uriEmail = "https://api.ctbps.nl/v3/odata/Email"
-$uriCostCenters = "https://api.ctbps.nl/v3/odata/CompanyCostCenters(companyid=guid'0f699459-0391-e511-80cf-44a8421bf766')"
-$uriCostCenterAllocations = "https://api.ctbps.nl/v3/odata/CostCenterAllocation"
-$uriSalaryEmployments = "https://api.ctbps.nl/v3/odata/SalaryEmployment"
-$uriCostCenters = 'https://api.ctbps.nl/v3/odata/CompanyCostCenter?$filter=CompanyId%20eq%20(guid%2753edff19-0391-e511-80cf-44a8421bf766%27)'
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
-# Enable TLS 1.2
-if ([Net.ServicePointManager]::SecurityProtocol -notmatch "Tls12") {
-    [Net.ServicePointManager]::SecurityProtocol += [Net.SecurityProtocolType]::Tls12
+# Initialize default value's
+$config = $configuration | ConvertFrom-Json
+$baseUrl = $config.BaseUrl
+$clientId = $config.ClientId
+$clientSecret = $config.Apikey
+$contractRetentionPeriod = (Get-Date).AddDays(-[int]$($config.HistoricalDays))
+$contractFuturePeriod = (Get-Date).AddDays([int]$($config.FutureDays))
+
+# Set debug logging
+switch ($($config.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
 }
 
-Write-Verbose "Starting..." -Verbose
-
-$pair = "${clientId}:${clientSecret}"
-$bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
-$base64 = [System.Convert]::ToBase64String($bytes)
-$basicAuthValue = "Basic $base64"
-$headers = @{ "Authorization" = $basicAuthValue; }
-$body = @{ "scope" = "customer"; "grant_type" = "client_credentials"; }
-
-Write-Verbose "Authenticating..." -Verbose
-
-$result = Invoke-WebRequest -Method POST -Uri $uriAuth -Headers $headers -Body $body -ContentType "application/x-www-form-urlencoded"
-$content = $result.Content | ConvertFrom-Json
-$accessToken = $content.access_token
-$headers = @{ "Authorization" = "Bearer $accessToken" }
-
-Write-Verbose "Retrieving data from endpoints..." -Verbose
+#region functions
+function Resolve-SDworkx-CobraError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
+        try {
+            $errorDetailsObject = ($httpErrorObj.ErrorDetails | ConvertFrom-Json)
+            $httpErrorObj.FriendlyMessage = "[$($errorDetailsObject.error)] [$($errorDetailsObject.error_description)]"
+            if ($httpErrorObj.FriendlyMessage -eq '[] []') {
+                $httpErrorObj.FriendlyMessage = $errorDetailsObject.'odata.error'.message.value
+            }
+        }
+        catch {
+            $httpErrorObj.FriendlyMessage = "[$($httpErrorObj.ErrorDetails)] [$($_.Exception.Message)]"
+        }
+        Write-Output $httpErrorObj
+    }
+}
+#endregion
 
 try {
-    $data = Invoke-RestMethod -Method GET -Uri $uriPerson -Headers $headers
-    $persons = $data.value
+    $actionMessage = "retrieving access token"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${clientId}:${clientSecret}")
+    $base64 = [System.Convert]::ToBase64String($bytes)
+    $tokenHeaders = @{ Authorization = "Basic $base64" }
+    $body = @{ "scope" = "customer"; "grant_type" = "client_credentials"; }
+    $splatAccessTokenParams = @{
+        Method      = 'POST'
+        Uri         = "$baseUrl/OAuth/Token"
+        Headers     = $tokenHeaders
+        Body        = $body
+        ContentType = 'application/x-www-form-urlencoded'
+    }
+    $tokenResponse = (Invoke-WebRequest @splatAccessTokenParams).content | ConvertFrom-Json
+    $accessToken = $tokenResponse.access_token 
+    $headers = @{
+        Authorization = "Bearer $accessToken"
+        Accept        = "application/json"
+    }
+    Write-Verbose "Access token retrieved successfully."
 
-    $data = Invoke-RestMethod -Method GET -Uri $uriAddresses -Headers $headers
-    $addresses = $data.value
+    $actionMessage = "retrieving persons"
+    $splatPersonsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Person"
+        Headers = $headers
+    }
+    $persons = (Invoke-RestMethod @splatPersonsParams).value
+    $personsGrouped = $persons | Group-Object -Property Id -AsHashTable
+    Write-Information "Retrieved [$($persons.Count)] persons successfully."
 
-    $data = Invoke-RestMethod -Method GET -Uri $uriCurrentEmployment -Headers $headers
-    $currentEmployments = $data.value
-    $currentAssignments = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriEmploymentHistory -Headers $headers
-    $employmentHistory = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriFunction -Headers $headers
-    $functions = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriDepartment -Headers $headers
-    $departments = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriOrganization -Headers $headers
-    $organizations = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriTelephone -Headers $headers
-    $telphoneNumbers = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriGroups -Headers $headers
-    $Groups = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriGroupParticipant -Headers $headers
-    $GroupParticipants = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriEmail -Headers $headers
-    $Emailaddresses = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriCostCenterAllocations -Headers $headers
-    $CCAllocations = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriSalaryEmployments -Headers $headers
-    $SalaryEmployments = $data.value
-
-    $data = Invoke-RestMethod -Method GET -Uri $uriCostCenters -Headers $headers
-    $CostCenters = $data.value
+    $actionMessage = "retrieving current employments"
+    $splatCurrentEmploymentsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/CurrentEmployment"
+        Headers = $headers
+    }
+    $currentEmployments = (Invoke-RestMethod @splatCurrentEmploymentsParams).value
+    $currentEmploymentsFiltered = $currentEmployments | Select-Object -Property * -ExcludeProperty SalaryId, SalaryStartDate, SalaryEndDate, SalaryTable, SalaryReason, Scale, Step, Period, VariantSalary, VariantHourlyWage, NettoHourlyWage1, NettoHourlyWage2
+    $currentEmploymentsGrouped = $currentEmploymentsFiltered | Group-Object -Property PersonId -AsHashTable
+    Write-Information "Retrieved [$($currentEmploymentsFiltered.Count)] current employments successfully."
+    $currentEmployments = $null
     
-}
-catch {
-    Write-Verbose $_
-    Write-Verbose "Failure in retrieving data from endpoints, aborting..." -Verbose
-    exit
-}
+    $actionMessage = "retrieving employment history"
+    $episodeEndDateFilter = $contractRetentionPeriod.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $episodeStartDateFilter = $contractFuturePeriod.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $filter = "`$filter=(EpisodeEndDate eq null or EpisodeEndDate ge datetimeoffset'$episodeEndDateFilter') and (EpisodeStartDate eq null or EpisodeStartDate le datetimeoffset'$episodeStartDateFilter')"
+    $splatEmploymentHistoryParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/EmploymentHistory?$filter"
+        Headers = $headers
+    }
+    $employmentHistory = (Invoke-RestMethod @splatEmploymentHistoryParams).value
+    $employmentHistoryFiltered = $employmentHistory | Select-Object -Property * -ExcludeProperty SalaryId, SalaryStartDate, SalaryEndDate, SalaryTable, SalaryReason, Scale, Step, Period, VariantSalary, VariantHourlyWage, NettoHourlyWage1, NettoHourlyWage2
+    $employmentHistoryGrouped = $employmentHistoryFiltered | Group-Object -Property PersonId -AsHashTable
+    Write-Information "Retrieved [$($employmentHistoryFiltered.Count)] history employments successfully."
+    $employmentHistory = $null
 
-# Group data for processing
-Write-Verbose "Grouping data..." -Verbose
-$currentEmployments = $currentEmployments | Group-Object PersonId -AsHashTable
-$currentAssignments = $currentAssignments | Group-Object PersonId -AsHashTable
-$employmentHistory = $employmentHistory | Group-Object PersonId -AsHashTable
-$functions = $functions | Group-Object Code -AsHashTable
-$organizations = $organizations | Group-Object ID -AsHashTable
-$addresses = $addresses | Group-Object PersonId -AsHashTable
-$telphoneNumbers = $telphoneNumbers | Group-Object PersonId -AsHashTable
-$Groups = $Groups | Group-Object ID -AsHashTable
-$GroupParticipants = $GroupParticipants | Group-Object ParticipantId -AsHashTable
-$Emailaddresses = $Emailaddresses | Group-Object PersonId -AsHashTable
-$SalaryEmployments = $SalaryEmployments | Group-Object PersonId -AsHashTable
-$CCAllocations = $CCAllocations | Group-Object SalaryEmploymentId -AsHashTable
-$CostCenters = $CostCenters | Group-Object ID -AsHashTable
+    $actionMessage = "retrieving functions"
+    $splatFunctionsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Function"
+        Headers = $headers
+    }
+    $functions = (Invoke-RestMethod @splatFunctionsParams).value
+    $functionsGrouped = $functions | Group-Object -Property Id -AsHashTable
+    Write-Information "Retrieved [$($functions.Count)] functions successfully."
+    $functions = $null
 
-# Extend the persons with employments and required fields
-Write-Verbose "Augmenting persons..." -Verbose
-$persons | Add-Member -MemberType NoteProperty -Name "Contracts" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "Addresses" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "PrivateEmailAddress" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "ExternalId" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "MobileWork" -Value $null -Force
-$persons | Add-Member -MemberType NoteProperty -Name "Groups" -Value $null -Force
+    $actionMessage = "retrieving organizations"
+    $splatOrganizationsParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Organization"
+        Headers = $headers
+    }
+    $organizations = (Invoke-RestMethod @splatOrganizationsParams).value
+    $organizationsGrouped = $organizations | Group-Object -Property Id -AsHashTable
+    Write-Information "Retrieved [$($organizations.Count)] organizations successfully."
+    $organizations = $null
 
-#Setting Global Vars 
-$today = Get-Date
+    $actionMessage = "retrieving phone numbers"
+    $splatPhoneParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Phone"
+        Headers = $headers
+    }
+    $phoneNumbers = (Invoke-RestMethod @splatPhoneParams).value
+    $phoneNumbersFiltered = $phoneNumbers | Where-Object { $_.PhoneType -ne $null }
+    $phoneNumbersGrouped = $phoneNumbersFiltered | Group-Object -Property PersonId -AsHashTable
+    Write-Information "Retrieved [$($phoneNumbersFiltered.Count)] phone numbers successfully."
+    $phoneNumbers = $null
+    $phoneNumbersFiltered = $null
 
-$persons | ForEach-Object {
-    # Map required fields
-    $_.ExternalId = $_.ID
-    $_.DisplayName = "$($_.NameComplete) ($($_.PersonNumber))"
-    $activeEmployee = $false
-    
-    # Add the contracts with full function name and clear salary values
-    $contracts = @();
-    $Contract = @();
-    $assignment = @();
-    $counter = 0 
+    $actionMessage = "retrieving email addresses"
+    $splatEmailParams = @{
+        Method  = 'GET'
+        Uri     = "$baseUrl/odata/Email"
+        Headers = $headers
+    }
+    $emailAddresses = (Invoke-RestMethod @splatEmailParams).value
+    $emailAddressesFiltered = $emailAddresses | Where-Object { $_.EmailAddress -ne $null }
+    $emailAddressesGrouped = $emailAddressesFiltered | Group-Object -Property PersonId -AsHashTable
+    Write-Information "Retrieved [$($emailAddressesFiltered.Count)] email addresses successfully."
+    $emailAddresses = $null
+    $emailAddressesFiltered = $null
 
-    #If($_.PersonNumber -eq "14700"){ #Enable this for testing one person
-    $personContracts = $employmentHistory[$_.ID]
-    if ($null -ne $personContracts) {
-        foreach($contractitem in $personContracts){
-            $Contract = @();
-            $counter = $counter + 1
-            $ContractStartDate = $contractitem.EpisodeStartDate
-            if(-not([string]::IsNullOrEmpty($ContractStartDate))){
-                $ContractStart = [datetime]$ContractStartDate
-            }
+    ######################################################
+    # Not used endpoints
 
-            $ContractEndDate = $contractitem.EpisodeEndDate
-            if(-not([string]::IsNullOrEmpty($ContractEndDate))){
-                $ContractEnd = [datetime]$ContractEndDate
-            } else {
-                $ContractEndDate = "2999-12-31"
-                $ContractEnd = [datetime]$ContractEndDate
-            } 
-            
-            $StartDatePeriod = $ContractStart.AddDays(-45)
-            $EndDatePeriod = $ContractEnd.AddDays(45)
-            If(($StartDatePeriod -lt $today) -And ($EndDatePeriod -gt $today)){
-                $fullfunction = $functions[$contractitem.FunctionCode]
-                If($null -ne $fullfunction){
-                    $functionLongName = $fullfunction.LongName
+    # $actionMessage = "retrieving addresses"
+    # $splatAddressesParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/Address"
+    #     Headers = $headers
+    # }
+    # $addresses = (Invoke-RestMethod @splatAddressesParams).value
+    # $addressesFiltered = $addresses | Where-Object { $_.isPostAddress -eq $true }
+    # $addressesGrouped = $addressesFiltered | Group-Object -Property PersonId -AsHashTable
+    # Write-Information "Retrieved [$($addressesFiltered.Count)] addresses successfully."
+    # $addresses = $null
+    # $addressesFiltered = $null
+
+    # $actionMessage = "retrieving cost center allocations"
+    # $splatCostCenterAllocationsParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/CostCenterAllocation"
+    #     Headers = $headers
+    # }
+    # $costCenterAllocations = (Invoke-RestMethod @splatCostCenterAllocationsParams).value
+    # $costCenterAllocationsGrouped = $costCenterAllocations | Group-Object -Property SalaryEmploymentId -AsHashTable
+    # Write-Information "Retrieved [$($costCenterAllocations.Count)] cost center allocations successfully."
+
+    # $actionMessage = "retrieving cost center allocations"
+    # $splatSalaryEmploymentParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/SalaryEmployment"
+    #     Headers = $headers
+    # }
+    # $salaryEmployments = (Invoke-RestMethod @splatSalaryEmploymentParams).value
+    # $salaryEmploymentsFiltered = $salaryEmployments | Select-Object -Property ID, PersonId, StartDate, EndDate, HoursPerWeek, WorkPercentage
+    # $salaryEmploymentsGrouped = $salaryEmploymentsFiltered | Group-Object -Property PersonId -AsHashTable
+    # Write-Information "Retrieved [$($salaryEmploymentsFiltered.Count)] salary employments successfully."
+    # $salaryEmployments = $null
+
+    # $actionMessage = "retrieving departments"
+    # $splatDepartmentsParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/Department"
+    #     Headers = $headers
+    # }
+    # $departments = (Invoke-RestMethod @splatDepartmentsParams).value
+    # Write-Information "Retrieved [$($departments.Count)] departments successfully."
+
+    # $actionMessage = "retrieving groups"
+    # $splatGroupsParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/Group"
+    #     Headers = $headers
+    # }
+    # $groups = (Invoke-RestMethod @splatGroupsParams).value
+    # $groupsGrouped = $groups | Group-Object -Property Id -AsHashTable
+    # Write-Information "Retrieved [$($groups.Count)] groups successfully."
+
+    # $actionMessage = "retrieving group participants"
+    # $splatGroupParticipantsParams = @{
+    #     Method  = 'GET'
+    #     Uri     = "$baseUrl/odata/GroupParticipant"
+    #     Headers = $headers
+    # }
+    # $groupParticipants = (Invoke-RestMethod @splatGroupParticipantsParams).value
+    # $groupParticipantsGrouped = $groupParticipants | Group-Object -Property ParticipantId -AsHashTable
+    # Write-Information "Retrieved [$($groupParticipants.Count)] group participants successfully."
+
+    ######################################################
+
+    $actionMessage = "enhancing and exporting person objects to HelloID"
+    # Set counter to keep track of actual exported person objects
+    $exportedPersons = 0
+    # Enhance person model with required properties
+    $persons | Add-Member -MemberType NoteProperty -Name "Contracts" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "ExternalId" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "DisplayName" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "Addresses" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "PhoneNumberWork" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "PhoneNumberPrivate" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "EmailWork" -Value $null -Force
+    $persons | Add-Member -MemberType NoteProperty -Name "EmailPrivate" -Value $null -Force
+
+    foreach ($person in $persons) {        
+        $person.ExternalID = $person.PersonNumber
+        $person.DisplayName = "$($person.Nickname) $($person.Prefix) $($person.LastName)".trim(' ') + " ($($person.PersonNumber))"
+
+        # $personAddresses = $addressesGrouped[$person.Id]
+        # if ($null -ne $personAddresses) {
+        #     $person.Addresses = $personAddresses | Select-Object -First 1
+        # }
+
+        $phoneNumbers = $phoneNumbersGrouped[$person.Id]
+        if ($null -ne $phoneNumbers) {
+            $person.PhoneNumberWork = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Werktelefoon' } | Select-Object -First 1 -ExpandProperty PhoneNumber
+            $person.PhoneNumberPrivate = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Mobiel' } | Select-Object -First 1 -ExpandProperty PhoneNumber
+        }
+
+        $personEmailAddresses = $emailAddressesGrouped[$person.Id]
+        if ($null -ne $personEmailAddresses) {
+            $person.EmailWork = $personEmailAddresses | Where-Object { $_.Index -eq 1 } | Select-Object -First 1 -ExpandProperty EmailAddress
+            $person.EmailPrivate = $personEmailAddresses | Where-Object { $_.Index -eq 2 } | Select-Object -First 1 -ExpandProperty EmailAddress
+        }
+
+        $contractsList = [System.Collections.ArrayList]::new()
+        $employments = $currentEmploymentsGrouped[$person.Id]
+        if ($null -ne $employments) {
+            $employments | Add-Member -MemberType NoteProperty -Name "EmploymentType" -Value 'Current' -Force
+            $employments | Add-Member -MemberType NoteProperty -Name "OrganizationName" -Value $null -Force
+            $employments | Add-Member -MemberType NoteProperty -Name "OrganizationNumber" -Value $null -Force
+            $employments | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $null -Force
+            $employments | Add-Member -MemberType NoteProperty -Name "ManagerPersonNumber" -Value $null -Force
+            foreach ($employment in $employments) {
+                $organization = $organizationsGrouped[$employment.OrganizationId]
+                if ($null -ne $organization) {
+                    $employment.OrganizationName = $organization.Name
+                    $employment.OrganizationNumber = $organization.OrganizationNumber
                 }
-                if($null -eq $fullfunction){
-                    $functionLongName = $null
+                $function = $functionsGrouped[$employment.FunctionId]
+                if ($null -ne $function) {
+                    $employment.FunctionLongName = $function.LongName
                 }
-
-                $activeEmployee = $true
-                $Contract = [PSCustomObject]@{
-                    ID = $contractitem.ContractId + "_" + $counter + "C"
-                    PersonId = $contractitem.PersonId
-                    OrganizationId = $contractitem.OrganizationId
-                    EpisodeStartDate = $contractitem.EpisodeStartDate
-                    EpisodeEndDate = $contractitem.EpisodeEndDate
-                    EmploymentId = $contractitem.EmploymentId
-                    EmploymentStatus = $contractitem.EmploymentStatus
-                    EmploymentStartDate = $contractitem.EmploymentStartDate
-                    AnniversaryEmploymentDate = $contractitem.AnniversaryEmploymentDate
-                    EmploymentStartReason = $contractitem.EmploymentStartReason
-                    EmploymentEndDate = $contractitem.EmploymentEndDate
-                    EmploymentEndReason = $contractitem.EmploymentEndReason
-                    ProbationDuration = $contractitem.ProbationDuration
-                    ProbationEndDate = $contractitem.ProbationEndDate
-                    ResignationPeriod = $contractitem.ResignationPeriod
-                    ResignationRequestDate = $contractitem.ResignationRequestDate
-                    ContractId = $contractitem.ContractId
-                    ContractStartDate = $contractitem.ContractStartDate
-                    ContractEndDate = $contractitem.ContractEndDate
-                    ContractType = $contractitem.ContractType
-                    ContractDuration = $contractitem.ContractDuration
-                    ContractIndex = $contractitem.ContractIndex
-                    ParttimePercentage = $contractitem.ParttimePercentage
-                    DaysPerWeek = $contractitem.DaysPerWeek
-                    IsMinMaxWorker = $contractitem.IsMinMaxWorker
-                    MinHoursPerWeek = $contractitem.MinHoursPerWeek
-                    MaxHoursPerWeek = $contractitem.MaxHoursPerWeek
-                    IsOnCallWorker = $contractitem.IsOnCallWorker
-                    PersonFunctionId = $contractitem.PersonFunctionId
-                    FunctionId = $contractitem.FunctionId
-                    FunctionStartDate = $contractitem.FunctionStartDate
-                    FunctionEndDate = $contractitem.FunctionEndDate
-                    FunctionStartReason = $contractitem.FunctionStartReason
-                    FunctionCode = $contractitem.FunctionCode
-                    FunctionName = $contractitem.FunctionName
-                    FunctionLongName = $functionLongName
-                    RoomNumber = $contractitem.RoomNumber
-                    DepartmentId = $contractitem.DepartmentId
-                    DepartmentCode = $contractitem.DepartmentCode
-                    DepartmentName = $contractitem.DepartmentName
-                    DepartmentNameShort = $contractitem.DepartmentNameShort
-                    CostCenterId = $contractitem.CostCenterId
-                    CostCenterCode = $contractitem.CostCenterCode
-                    CostCenterName = $contractitem.CostCenterName
-                    PersonSalaryId = $contractitem.PersonSalaryId
-                    SalaryId = $contractitem.SalaryId
-                    SalaryStartDate = $contractitem.SalaryStartDate
-                    SalaryEndDate = $contractitem.SalaryEndDate
-                    SalaryTable = $null
-                    SalaryReason = $contractitem.SalaryReason
-                    Scale = $contractitem.Scale
-                    Step = $contractitem.Step
-                    Period = $contractitem.Period
-                    VariantSalary = $null
-                    VariantHourlyWage = $contractitem.VariantHourlyWage
-                    NettoHourlyWage1 = $contractitem.NettoHourlyWage1
-                    NettoHourlyWage2 = $contractitem.NettoHourlyWage2
-                    ManagerName = $contractitem.ManagerName
-                    ManagerId = $contractitem.ManagerId
-                    SubstituteManagerName = $contractitem.SubstituteManagerName
-                    SubstituteManagerId = $contractitem.SubstituteManagerId
-                    TimeScheduleId = $contractitem.TimeScheduleId
-                    TimeScheduleStartDate = $contractitem.TimeScheduleStartDate
-                    TimeScheduleEndDate = $contractitem.TimeScheduleEndDate
-                    PersonStandardHoursPerWeek = $contractitem.PersonStandardHoursPerWeek
-                    ReasonContractChange = $contractitem.ReasonContractChange
-                    Payment = $contractitem.Payment
-                    EmployeeType = $contractitem.EmployeeType
-                    LocationName = $contractitem.LocationName
-                    LocationId = $contractitem.LocationId
-                    PrimaryContract = 1
+                $managerId = $employment.ManagerId
+                if ($null -ne $managerId) {
+                    $manager = $personsGrouped[$managerId]
+                    if ($null -ne $manager) {
+                        $employment.ManagerPersonNumber = $manager.PersonNumber
                     }
-            } $contracts += $Contract
-    } 
- }
-#} #Enable this for testing one person
+                }
+                $employmentObject = [PSCustomObject]@{}
+                $employment.psobject.properties | ForEach-Object {
+                    $value = $_.Value
+                    if ($_.Name -eq 'EpisodeStartDate' -or $_.Name -eq 'EpisodeEndDate') {
+                        if (-not [string]::IsNullOrEmpty($value)) {
+                            $value = ([DateTime]::Parse($value)).ToString('yyyy-MM-dd')
+                            if ($value -eq '2100-01-01') { $value = $null }
+                        }
+                    }
+                    $employmentObject | Add-Member -MemberType $_.MemberType -Name "$($_.Name)" -Value $value -Force
+                }
+                [Void]$contractsList.Add($employmentObject)
+            }
+        }
 
-
-    If($activeEmployee -eq $true){
-        $PersonSalaryEmployments = $SalaryEmployments[$_.ID]
-        if ($null -ne $PersonSalaryEmployments){
-            foreach($employment in $PersonSalaryEmployments){
-                    $salaryID = $employment.ID
-                    $assignedCC = $CCAllocations[$salaryID]
-                    if ($null -ne $assignedCC){
-                        foreach($cc in $assignedCC){
-                            $tmp_assignedCC = $null
-                            $tmp_costcenter = $null
-                            $tmp_department = $null
-                            $additionalDepID = $null
-                            $additionalDepCode = $null
-                            $additionalDepName = $null
-                            $additionalDepNameShort = $null
-                            if($null -ne $cc.CompanyCostCenterId){
-                                $tmp_assignedCC = $cc.CompanyCostCenterId
-                                $tmp_costcenter = $CostCenters[$tmp_assignedCC]
-                                If($null -ne $tmp_costcenter){
-                                    $costingCode = $tmp_costcenter.CostingCode
-                                    $tmp_department = $departments | Where-Object DepartmentCode -eq $costingCode
-                                    $additionalDepID = $tmp_department.ID
-                                    $additionalDepCode = $tmp_department.DepartmentCode
-                                    $additionalDepName = $tmp_Department.Name
-                                    $additionalDepNameShort = $tmp_Department.ShortName
-                                    $personAssignments = $currentEmployments[$_.ID]
-                                    if ($null -ne $personAssignments) {
-                                        foreach($assignment in $personAssignments){
-                                            If($additionalDepCode -ne $assignment.DepartmentCode){
-        
-                                                $fullfunction = $functions[$assignment.FunctionCode]
-                                                If($null -ne $fullfunction){
-                                                    $functionLongName = $fullfunction.LongName
-                                                }
-                                                if($null -eq $fullfunction){
-                                                    $functionLongName = $null
-                                                }
-        
-                                                $assignment = [PSCustomObject]@{
-                                                    ID = $assignment.ContractId + $additionalDepCode
-                                                    PersonId = $assignment.PersonId
-                                                    OrganizationId = $assignment.OrganizationId
-                                                    EpisodeStartDate = $assignment.EpisodeStartDate
-                                                    EpisodeEndDate = $assignment.EpisodeEndDate
-                                                    EmploymentId = $assignment.EmploymentId
-                                                    EmploymentStatus = $assignment.EmploymentStatus
-                                                    EmploymentStartDate = $assignment.EmploymentStartDate
-                                                    AnniversaryEmploymentDate = $assignment.AnniversaryEmploymentDate
-                                                    EmploymentStartReason = $assignment.EmploymentStartReason
-                                                    EmploymentEndDate = $assignment.EmploymentEndDate
-                                                    EmploymentEndReason = $assignment.EmploymentEndReason
-                                                    ProbationDuration = $assignment.ProbationDuration
-                                                    ProbationEndDate = $assignment.ProbationEndDate
-                                                    ResignationPeriod = $assignment.ResignationPeriod
-                                                    ResignationRequestDate = $assignment.ResignationRequestDate
-                                                    ContractId = $assignment.ContractId
-                                                    ContractStartDate = $assignment.ContractStartDate
-                                                    ContractEndDate = $assignment.ContractEndDate
-                                                    ContractType = $assignment.ContractType
-                                                    ContractDuration = $assignment.ContractDuration
-                                                    ContractIndex = $assignment.ContractIndex
-                                                    ParttimePercentage = $assignment.ParttimePercentage
-                                                    DaysPerWeek = $assignment.DaysPerWeek
-                                                    IsMinMaxWorker = $assignment.IsMinMaxWorker
-                                                    MinHoursPerWeek = $assignment.MinHoursPerWeek
-                                                    MaxHoursPerWeek = $assignment.MaxHoursPerWeek
-                                                    IsOnCallWorker = $assignment.IsOnCallWorker
-                                                    PersonFunctionId = $assignment.PersonFunctionId
-                                                    FunctionId = $assignment.FunctionId
-                                                    FunctionStartDate = $assignment.FunctionStartDate
-                                                    FunctionEndDate = $assignment.FunctionEndDate
-                                                    FunctionStartReason = $assignment.FunctionStartReason
-                                                    FunctionCode = $assignment.FunctionCode
-                                                    FunctionName = $assignment.FunctionName
-                                                    FunctionLongName = $functionLongName
-                                                    RoomNumber = $assignment.RoomNumber
-                                                    DepartmentId = $additionalDepID
-                                                    DepartmentCode = $additionalDepCode
-                                                    DepartmentName = $additionalDepName
-                                                    DepartmentNameShort = $additionalDepNameShort
-                                                    CostCenterId = $assignment.CostCenterId
-                                                    CostCenterCode = $assignment.CostCenterCode
-                                                    CostCenterName = $assignment.CostCenterName
-                                                    PersonSalaryId = $assignment.PersonSalaryId
-                                                    SalaryId = $assignment.SalaryId
-                                                    SalaryStartDate = $assignment.SalaryStartDate
-                                                    SalaryEndDate = $assignment.SalaryEndDate
-                                                    SalaryTable = $null
-                                                    SalaryReason = $assignment.SalaryReason
-                                                    Scale = $assignment.Scale
-                                                    Step = $assignment.Step
-                                                    Period = $assignment.Period
-                                                    VariantSalary = $null
-                                                    VariantHourlyWage = $assignment.VariantHourlyWage
-                                                    NettoHourlyWage1 = $assignment.NettoHourlyWage1
-                                                    NettoHourlyWage2 = $assignment.NettoHourlyWage2
-                                                    ManagerName = $assignment.ManagerName
-                                                    ManagerId = $assignment.ManagerId
-                                                    SubstituteManagerName = $assignment.SubstituteManagerName
-                                                    SubstituteManagerId = $assignment.SubstituteManagerId
-                                                    TimeScheduleId = $assignment.TimeScheduleId
-                                                    TimeScheduleStartDate = $assignment.TimeScheduleStartDate
-                                                    TimeScheduleEndDate = $assignment.TimeScheduleEndDate
-                                                    PersonStandardHoursPerWeek = $assignment.PersonStandardHoursPerWeek
-                                                    ReasonContractChange = $assignment.ReasonContractChange
-                                                    Payment = $assignment.Payment
-                                                    EmployeeType = $assignment.EmployeeType
-                                                    LocationName = $assignment.LocationName
-                                                    LocationId = $assignment.LocationId
-                                                    PrimaryContract = 0
-                                                    }
-                                            }
-                                        }
-                                    }   
-                                    $contracts += $assignment
-                                    }
-                                }
+        $historyEmployments = $employmentHistoryGrouped[$person.Id]
+        if ($null -ne $historyEmployments) {
+            $historyEmployments | Add-Member -MemberType NoteProperty -Name "EmploymentType" -Value 'History' -Force
+            $historyEmployments | Add-Member -MemberType NoteProperty -Name "OrganizationName" -Value $null -Force
+            $historyEmployments | Add-Member -MemberType NoteProperty -Name "OrganizationNumber" -Value $null -Force
+            $historyEmployments | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $null -Force
+            $historyEmployments | Add-Member -MemberType NoteProperty -Name "ManagerPersonNumber" -Value $null -Force
+            foreach ($historyEmployment in $historyEmployments) {
+                # Only add history employment if not already present in current employments to avoid duplicate contracts
+                if ($null -eq ($contractsList | Where-Object { $_.ContractId -eq $historyEmployment.ContractId })) { 
+                    $organization = $organizationsGrouped[$historyEmployment.OrganizationId]
+                    if ($null -ne $organization) {
+                        $historyEmployment.OrganizationName = $organization.Name
+                        $historyEmployment.OrganizationNumber = $organization.OrganizationNumber
+                    }
+                    $function = $functionsGrouped[$historyEmployment.FunctionId]
+                    if ($null -ne $function) {
+                        $historyEmployment.FunctionLongName = $function.LongName
+                    }
+                    $managerId = $historyEmployment.ManagerId
+                    if ($null -ne $managerId) {
+                        $manager = $personsGrouped[$historyEmployment.ManagerId]
+                        if ($null -ne $manager) {
+                            $historyEmployment.ManagerPersonNumber = $manager.PersonNumber
+                        }
+                    }
+                    $historyEmploymentObject = [PSCustomObject]@{}
+                    $historyEmployment.psobject.properties | ForEach-Object {
+                        $value = $_.Value
+                        if ($_.Name -eq 'EpisodeStartDate' -or $_.Name -eq 'EpisodeEndDate') {
+                            if (-not [string]::IsNullOrEmpty($value)) {
+                                $value = ([DateTime]::Parse($value)).ToString('yyyy-MM-dd')
+                                if ($value -eq '2100-01-01') { $value = $null }
                             }
                         }
+                        $historyEmploymentObject | Add-Member -MemberType $_.MemberType -Name "$($_.Name)" -Value $value -Force
+                    }
+                    [Void]$contractsList.Add($historyEmploymentObject)
                 }
-                }
-    }
-    
-
-    If($contracts.length -gt 0){
-        $_.Contracts = $contracts
-    }
-    
-    # Add the addresses
-    $personAddresses = $addresses[$_.ID]
-    if ($null -ne $personAddresses) {
-        $personHomeAddress = $personAddresses | Where-Object isPostAddress -eq $true
-            $_.Addresses = $personHomeAddress
-    }
-
-    # Add the Mobile number Work
-    $persontelphoneNumbers = $telphoneNumbers[$_.ID]
-    if ($null -ne $persontelphoneNumbers) {
-        $personMobileWork = $persontelphoneNumbers | Where-Object PhoneType -eq "Mobiel Werk"
-        $MobileWorkSet = $personMobileWork | Select-Object PhoneNumber -First 1
-            $_.MobileWork = $MobileWorkSet.PhoneNumber
-    }
-
-    # Add the Group Memberships
-    $personGroups = @();
-    $personGroupMemberships = $GroupParticipants[$_.ID]
-    if ($null -ne $personGroupMemberships) {
-        ForEach($groupItem in $personGroupMemberships){
-            $groupItem | Add-Member -MemberType NoteProperty -Name "GroupName" -Value $null -Force
-            $groupSelect = $groups[$groupItem.GroupId]
-            $groupName = $groupSelect.Name
-            $groupItem.GroupName = $groupName
-            $personGroups += $groupItem
+            }
         }
+            
+        if ($contractsList.Count -gt 0) {
+            $person.Contracts = $contractsList
+        }
+        else {
+            # All persons are retrieved for this reason person without a contract need to be excluded
+            continue
+        }
+
+        Write-Output $person | ConvertTo-Json -Depth 10
+        # Updated counter to keep track of actual exported person objects
+        $exportedPersons++
     }
-    $_.Groups = $personGroups
-
-
+    Write-Information "Successfully enhanced and exported person objects to HelloID. Result count: $($exportedPersons)"
 }
-
-
-# Make sure persons are unique
-$persons = $persons | Sort-Object ExternalId -Unique
-
-# Make sure the persons have contracts
-$persons = $persons | Where-Object { $null -ne $_.Contracts }
-
-# Make sure to output per person to allow for streaming
-Write-Verbose "Uploading persons..." -Verbose
-$persons | ForEach-Object {
-    $jsonPerson = $_ | ConvertTo-Json -Depth 3 -Compress
-    Write-Output $jsonPerson
-    Start-Sleep -Milliseconds 50
+catch {
+    $ex = $PSItem
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-SDworkx-CobraError -ErrorObject $ex
+        Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        Write-Error "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+    }
+    else {
+        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    }
 }
-
-Write-Verbose "Done." -Verbose

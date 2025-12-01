@@ -1,0 +1,63 @@
+[
+    {
+        "key": "BaseUrl",
+        "type": "input",
+        "templateOptions": {
+            "label": "BaseUrl",
+            "placeholder": "https://apiheliportal.cobra.sdworx.com",
+            "description": "The URL of your sdworx cobra environment",
+            "required": true
+        }
+    },
+    {
+        "key": "ClientID",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "ClientID",
+            "placeholder": "Enter your Client ID",
+            "required": true
+        }
+    },
+    {
+        "key": "Apikey",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "API Key",
+            "type": "password",
+            "placeholder": "Enter your API Key",
+            "required": true
+        }
+    },
+    {
+        "key": "HistoricalDays",
+        "type": "input",
+        "defaultValue": "90",
+        "templateOptions": {
+            "label": "HistoricalDays",
+            "description": "The number of days in the past from which the contracts will be imported.",
+            "required": true
+        }
+    },
+    {
+        "key": "FutureDays",
+        "type": "input",
+        "defaultValue": "90",
+        "templateOptions": {
+            "label": "FutureDays",
+            "description": "The number of days in the future from which the contracts will be imported.",
+            "required": true
+        }
+    },
+    {
+        "key": "isDebug",
+        "type": "checkbox",
+        "defaultValue": false,
+        "templateOptions": {
+            "label": "Toggle debug logging",
+            "description": "When toggled, debug logging will be displayed",
+            "required": false
+        }
+    }
+]

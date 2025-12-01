@@ -1,7 +1,7 @@
 # HelloID-Conn-Prov-Source-SDworx
 
 > [!IMPORTANT]
-> Mapping and readme still needs to be updated.
+> Readme still needs to be updated.
 
 > [!CAUTION]
 > ExternalID in `persons.ps1` is changed from `person.ID` to `person.PersonNumber`. This is a breaking change!

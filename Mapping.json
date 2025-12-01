@@ -1,137 +1,9 @@
 {
     "personMappings": [
         {
-            "name": "Contact.Business.Address.Country",
-            "mode": "field",
-            "value": "Addresses.CountryCode",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Address.HouseNumber",
-            "mode": "field",
-            "value": "Addresses.HouseNumber",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Address.HouseNumberExt",
-            "mode": "field",
-            "value": "Addresses.HouseNumberAddition",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Address.Locality",
-            "mode": "field",
-            "value": "Addresses.City",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Address.PostalCode",
-            "mode": "field",
-            "value": "Addresses.Zipcode",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Address.Street",
-            "mode": "field",
-            "value": "Addresses.Street",
-            "validation": {
-                "required": false
-            }
-        },
-        {
             "name": "Contact.Business.Email",
             "mode": "field",
-            "value": "BusinessEmailAddress",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Business.Phone.Mobile",
-            "mode": "field",
-            "value": "MobileWork",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.Country",
-            "mode": "field",
-            "value": "Addresses.CountryCode",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.HouseNumber",
-            "mode": "field",
-            "value": "Addresses.HouseNumber",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.HouseNumberExt",
-            "mode": "complex",
-            "value": "function getHouseNumberAddition() {\r\n    if((source.Addresses === null) || (source.Addresses === \"\" )) {\r\n        return \"\";\r\n    }\r\n    else{\r\n        if((source.Addresses.HouseNumberAddition === null) || (source.Addresses.HouseNumberAddition === \"\" ) || (source.Addresses.HouseNumberAddition[1] )) {\r\n            return \"\";\r\n        }\r\n        else\r\n        {\r\n            return source.Addresses.HouseNumberAddition; \r\n        }\r\n    }\r\n} \r\n \r\ngetHouseNumberAddition();",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.Locality",
-            "mode": "field",
-            "value": "Addresses.City",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.PostalCode",
-            "mode": "field",
-            "value": "Addresses.Zipcode",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Address.Street",
-            "mode": "field",
-            "value": "Addresses.Street",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Contact.Personal.Email",
-            "mode": "field",
-            "value": "PrivateEmailAddress",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Details.BirthDate",
-            "mode": "field",
-            "value": "DateOfBirth",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Details.Gender",
-            "mode": "complex",
-            "value": "function getGender() {\r\n    if(source.Gender == \"1\") {\r\n        return \"Man\";\r\n    }\r\n    if(source.Gender == \"2\") {\r\n        return \"Vrouw\";\r\n    }\r\n    else{\r\n        return \"Onbekend\";\r\n    }\r\n} \r\n \r\ngetGender();",
+            "value": "EmailWork",
             "validation": {
                 "required": false
             }
@@ -149,7 +21,7 @@
             "mode": "complex",
             "value": "function getNamingConvention() {\r\n    if(source.LastNameFormat.toString() == \"1\") {\r\n        return \"B\";\r\n    }\r\n    if(source.LastNameFormat.toString()  == \"2\") {\r\n        return \"P\";\r\n    }\r\n    if(source.LastNameFormat.toString() == \"3\") {\r\n        return \"PB\";\r\n    }\r\n    if(source.LastNameFormat.toString() == \"4\") {\r\n        return \"BP\";\r\n    } \r\n    else{\r\n        return \"B\";\r\n    }\r\n} \r\n \r\ngetNamingConvention();",
             "validation": {
-                "required": false
+                "required": true
             }
         },
         {
@@ -203,9 +75,25 @@
     ],
     "contractMappings": [
         {
+            "name": "CostCenter.Code",
+            "mode": "field",
+            "value": "CostCenterCode",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "CostCenter.ExternalId",
+            "mode": "field",
+            "value": "CostCenterCode",
+            "validation": {
+                "required": false
+            }
+        },
+        {
             "name": "CostCenter.Name",
             "mode": "field",
-            "value": "DepartmentCode",
+            "value": "CostCenterName",
             "validation": {
                 "required": false
             }
@@ -235,25 +123,9 @@
             }
         },
         {
-            "name": "Details.Percentage",
-            "mode": "field",
-            "value": "ParttimePercentage",
-            "validation": {
-                "required": false
-            }
-        },
-        {
-            "name": "Details.Sequence",
-            "mode": "field",
-            "value": "PrimaryContract",
-            "validation": {
-                "required": false
-            }
-        },
-        {
             "name": "EndDate",
             "mode": "field",
-            "value": "ContractEndDate",
+            "value": "EpisodeEndDate",
             "validation": {
                 "required": false
             }
@@ -261,7 +133,31 @@
         {
             "name": "ExternalId",
             "mode": "field",
-            "value": "ID",
+            "value": "ContractId",
+            "validation": {
+                "required": true
+            }
+        },
+        {
+            "name": "Location.Name",
+            "mode": "field",
+            "value": "LocationName",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Manager.ExternalId",
+            "mode": "field",
+            "value": "ManagerPersonNumber",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Organization.Code",
+            "mode": "field",
+            "value": "OrganizationNumber",
             "validation": {
                 "required": false
             }
@@ -269,7 +165,15 @@
         {
             "name": "Organization.ExternalId",
             "mode": "field",
-            "value": "OrganizationId",
+            "value": "OrganizationNumber",
+            "validation": {
+                "required": false
+            }
+        },
+        {
+            "name": "Organization.Name",
+            "mode": "field",
+            "value": "OrganizationName",
             "validation": {
                 "required": false
             }
@@ -277,15 +181,15 @@
         {
             "name": "StartDate",
             "mode": "field",
-            "value": "ContractStartDate",
+            "value": "EpisodeStartDate",
             "validation": {
-                "required": false
+                "required": true
             }
         },
         {
             "name": "Title.Code",
             "mode": "field",
-            "value": "FunctionName",
+            "value": "FunctionCode",
             "validation": {
                 "required": false
             }
@@ -293,7 +197,7 @@
         {
             "name": "Title.ExternalId",
             "mode": "field",
-            "value": "FunctionId",
+            "value": "FunctionCode",
             "validation": {
                 "required": false
             }

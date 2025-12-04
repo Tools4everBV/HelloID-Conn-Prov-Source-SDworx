@@ -280,14 +280,20 @@ try {
             $employments | Add-Member -MemberType NoteProperty -Name "FunctionLongName" -Value $null -Force
             $employments | Add-Member -MemberType NoteProperty -Name "ManagerPersonNumber" -Value $null -Force
             foreach ($employment in $employments) {
-                $organization = $organizationsGrouped[$employment.OrganizationId]
-                if ($null -ne $organization) {
-                    $employment.OrganizationName = $organization.Name
-                    $employment.OrganizationNumber = $organization.OrganizationNumber
+                $organizationId = $employment.OrganizationId
+                if ($null -ne $organizationId) {
+                    $organization = $organizationsGrouped[$organizationId]
+                    if ($null -ne $organization) {
+                        $employment.OrganizationName = $organization.Name
+                        $employment.OrganizationNumber = $organization.OrganizationNumber
+                    }
                 }
-                $function = $functionsGrouped[$employment.FunctionId]
-                if ($null -ne $function) {
-                    $employment.FunctionLongName = $function.LongName
+                $functionId = $employment.FunctionId
+                if ($null -ne $functionId) {
+                    $function = $functionsGrouped[$functionId]
+                    if ($null -ne $function) {
+                        $employment.FunctionLongName = $function.LongName
+                    }
                 }
                 $managerId = $employment.ManagerId
                 if ($null -ne $managerId) {
@@ -321,18 +327,24 @@ try {
             foreach ($historyEmployment in $historyEmployments) {
                 # Only add history employment if not already present in current employments to avoid duplicate contracts
                 if ($null -eq ($contractsList | Where-Object { $_.ContractId -eq $historyEmployment.ContractId })) { 
-                    $organization = $organizationsGrouped[$historyEmployment.OrganizationId]
-                    if ($null -ne $organization) {
-                        $historyEmployment.OrganizationName = $organization.Name
-                        $historyEmployment.OrganizationNumber = $organization.OrganizationNumber
+                    $organizationId = $historyEmployment.OrganizationId
+                    if ($null -ne $organizationId) {
+                        $organization = $organizationsGrouped[$organizationId]
+                        if ($null -ne $organization) {
+                            $historyEmployment.OrganizationName = $organization.Name
+                            $historyEmployment.OrganizationNumber = $organization.OrganizationNumber
+                        }
                     }
-                    $function = $functionsGrouped[$historyEmployment.FunctionId]
-                    if ($null -ne $function) {
-                        $historyEmployment.FunctionLongName = $function.LongName
+                    $functionId = $historyEmployment.FunctionId
+                    if ($null -ne $functionId) {
+                        $function = $functionsGrouped[$functionId]
+                        if ($null -ne $function) {
+                            $historyEmployment.FunctionLongName = $function.LongName
+                        }
                     }
                     $managerId = $historyEmployment.ManagerId
                     if ($null -ne $managerId) {
-                        $manager = $personsGrouped[$historyEmployment.ManagerId]
+                        $manager = $personsGrouped[$managerId]
                         if ($null -ne $manager) {
                             $historyEmployment.ManagerPersonNumber = $manager.PersonNumber
                         }

@@ -98,13 +98,14 @@ try {
         Headers = $headers
     }
     $departments = (Invoke-RestMethod @splatDepartmentsParams).value
-    Write-Information "Retrieved [$($departments.Count)] departments successfully."
+    $departmentsFiltered = $departments | Where-Object {$_.Active -eq '1'}
+    Write-Information "Retrieved [$($departmentsFiltered.Count)] active departments successfully."
 
     $actionMessage = "enhancing and exporting department objects to HelloID"
     # Set counter to keep track of actual exported department objects
     $exportedDepartments = 0
 
-    foreach ($department in $departments) {
+    foreach ($department in $departmentsFiltered) {
         $managerId = $department.ManagerId
         if ($null -ne $managerId) {
             $manager = $personsGrouped[$managerId]
@@ -131,7 +132,6 @@ try {
         $exportedDepartments++
     }
     Write-Information "Successfully enhanced and exported department objects to HelloID. Result count: $($exportedDepartments)"
-    Write-Warning "Successfully enhanced and exported department objects to HelloID. Result count: $($exportedDepartments)"
 }
 catch {
     $ex = $PSItem

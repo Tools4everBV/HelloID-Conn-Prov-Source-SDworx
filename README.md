@@ -38,9 +38,9 @@ The following settings are required to connect to the API.
 
 ## Remarks
 
-- All persons are retrieved from the source system; however, only persons with an active contract are returned to HelloID.
+- All persons are retrieved from SDworx Cobra. For this reason only persons with an contract are returned to HelloID.
 - In `person.ps1`, phone numbers can be split by type. The default types currently used are **Work Phone** and **Mobile**.
-- For email addresses, the email type (work / private) is not provided by default. Therefore, filtering is applied based on `index` **1** and **2**. As the index order is not consistent, it is possible that a private email address is mapped as a work email.
+- For email addresses, the email type (work / private) is not provided. Therefore, filtering is applied based on `index` **1** and **2**. As the index order is not consistent, it is possible that a private email address is mapped as a work email.
 - Some endpoints are commented out in the `person.ps1` script. Adjust the script according to your requirements to enable or disable these endpoints.
 
 ## Development resources

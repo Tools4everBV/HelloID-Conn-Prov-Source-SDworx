@@ -252,7 +252,7 @@ try {
 
     foreach ($person in $persons) {        
         $person.ExternalID = $person.PersonNumber
-        $person.DisplayName = "$($person.Nickname) $($person.Prefix) $($person.LastName)".trim(' ') + " ($($person.PersonNumber))"
+        $person.DisplayName = "$($person.Nickname) $($person.Prefixes) $($person.LastName)".trim(' ') + " ($($person.PersonNumber))"
 
         # $personAddresses = $addressesGrouped[$person.Id]
         # if ($null -ne $personAddresses) {

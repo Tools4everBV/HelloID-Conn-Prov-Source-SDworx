@@ -90,6 +90,7 @@ try {
         Headers = $headers
     }
     $persons = (Invoke-RestMethod @splatPersonsParams).value
+    $persons = $persons | Where-Object { $_.TypePerson -eq 0 } # Exclude persons with status 4 (inflow workflow)
     $personsGrouped = $persons | Group-Object -Property Id -AsHashTable
     Write-Information "Retrieved [$($persons.Count)] persons successfully."
 

@@ -49,15 +49,5 @@
             "description": "The number of days in the future from which the contracts will be imported.",
             "required": true
         }
-    },
-    {
-        "key": "isDebug",
-        "type": "checkbox",
-        "defaultValue": false,
-        "templateOptions": {
-            "label": "Toggle debug logging",
-            "description": "When toggled, debug logging will be displayed",
-            "required": false
-        }
     }
 ]

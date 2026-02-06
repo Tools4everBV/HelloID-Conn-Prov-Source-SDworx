@@ -15,12 +15,6 @@ $clientSecret = $config.Apikey
 $contractRetentionPeriod = (Get-Date).AddDays(-[int]$($config.HistoricalDays))
 $contractFuturePeriod = (Get-Date).AddDays([int]$($config.FutureDays))
 
-# Set debug logging
-switch ($($config.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 #region functions
 function Resolve-SDworkx-CobraError {
     [CmdletBinding()]
@@ -81,7 +75,7 @@ try {
         Authorization = "Bearer $accessToken"
         Accept        = "application/json"
     }
-    Write-Verbose "Access token retrieved successfully."
+    Write-Information "Access token retrieved successfully."
 
     $actionMessage = "retrieving persons"
     $splatPersonsParams = @{
@@ -119,7 +113,9 @@ try {
     $employmentHistoryFiltered = $employmentHistory | Select-Object -Property * -ExcludeProperty SalaryId, SalaryStartDate, SalaryEndDate, SalaryTable, SalaryReason, Scale, Step, Period, VariantSalary, VariantHourlyWage, NettoHourlyWage1, NettoHourlyWage2
     $employmentHistoryGrouped = $employmentHistoryFiltered | Group-Object -Property PersonId -AsHashTable
     Write-Information "Retrieved [$($employmentHistoryFiltered.Count)] history employments successfully."
+    # Cleanup for memory
     $employmentHistory = $null
+    $employmentHistoryFiltered = $null
 
     $actionMessage = "retrieving functions"
     $splatFunctionsParams = @{
@@ -130,6 +126,7 @@ try {
     $functions = (Invoke-RestMethod @splatFunctionsParams).value
     $functionsGrouped = $functions | Group-Object -Property Id -AsHashTable
     Write-Information "Retrieved [$($functions.Count)] functions successfully."
+    # Cleanup for memory
     $functions = $null
 
     $actionMessage = "retrieving organizations"
@@ -141,6 +138,7 @@ try {
     $organizations = (Invoke-RestMethod @splatOrganizationsParams).value
     $organizationsGrouped = $organizations | Group-Object -Property Id -AsHashTable
     Write-Information "Retrieved [$($organizations.Count)] organizations successfully."
+    # Cleanup for memory
     $organizations = $null
 
     $actionMessage = "retrieving phone numbers"
@@ -153,6 +151,7 @@ try {
     $phoneNumbersFiltered = $phoneNumbers | Where-Object { $_.PhoneType -ne $null }
     $phoneNumbersGrouped = $phoneNumbersFiltered | Group-Object -Property PersonId -AsHashTable
     Write-Information "Retrieved [$($phoneNumbersFiltered.Count)] phone numbers successfully."
+    # Cleanup for memory
     $phoneNumbers = $null
     $phoneNumbersFiltered = $null
 
@@ -166,6 +165,7 @@ try {
     $emailAddressesFiltered = $emailAddresses | Where-Object { $_.EmailAddress -ne $null }
     $emailAddressesGrouped = $emailAddressesFiltered | Group-Object -Property PersonId -AsHashTable
     Write-Information "Retrieved [$($emailAddressesFiltered.Count)] email addresses successfully."
+    # Cleanup for memory
     $emailAddresses = $null
     $emailAddressesFiltered = $null
 
@@ -182,6 +182,7 @@ try {
     # $addressesFiltered = $addresses | Where-Object { $_.isPostAddress -eq $true }
     # $addressesGrouped = $addressesFiltered | Group-Object -Property PersonId -AsHashTable
     # Write-Information "Retrieved [$($addressesFiltered.Count)] addresses successfully."
+    # # Cleanup for memory
     # $addresses = $null
     # $addressesFiltered = $null
 
@@ -205,6 +206,7 @@ try {
     # $salaryEmploymentsFiltered = $salaryEmployments | Select-Object -Property ID, PersonId, StartDate, EndDate, HoursPerWeek, WorkPercentage
     # $salaryEmploymentsGrouped = $salaryEmploymentsFiltered | Group-Object -Property PersonId -AsHashTable
     # Write-Information "Retrieved [$($salaryEmploymentsFiltered.Count)] salary employments successfully."
+    # # Cleanup for memory
     # $salaryEmployments = $null
 
     # $actionMessage = "retrieving departments"
@@ -255,21 +257,27 @@ try {
         $person.ExternalID = $person.PersonNumber
         $person.DisplayName = "$($person.Nickname) $($person.Prefixes) $($person.LastName)".trim(' ') + " ($($person.PersonNumber))"
 
-        # $personAddresses = $addressesGrouped[$person.Id]
-        # if ($null -ne $personAddresses) {
-        #     $person.Addresses = $personAddresses | Select-Object -First 1
+        # if ($null -ne $addressesGrouped) {
+        #     $personAddresses = $addressesGrouped[$person.Id]
+        #     if ($null -ne $personAddresses) {
+        #         $person.Addresses = $personAddresses | Select-Object -First 1
+        #     }
         # }
 
-        $phoneNumbers = $phoneNumbersGrouped[$person.Id]
-        if ($null -ne $phoneNumbers) {
-            $person.PhoneNumberWork = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Werktelefoon' } | Select-Object -First 1 -ExpandProperty PhoneNumber
-            $person.PhoneNumberPrivate = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Mobiel' } | Select-Object -First 1 -ExpandProperty PhoneNumber
+        if ($null -ne $phoneNumbersGrouped) {
+            $phoneNumbers = $phoneNumbersGrouped[$person.Id]
+            if ($null -ne $phoneNumbers) {
+                $person.PhoneNumberWork = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Werktelefoon' } | Select-Object -First 1 -ExpandProperty PhoneNumber
+                $person.PhoneNumberPrivate = $phoneNumbers | Where-Object { $_.PhoneType -eq 'Mobiel' } | Select-Object -First 1 -ExpandProperty PhoneNumber
+            }
         }
 
-        $personEmailAddresses = $emailAddressesGrouped[$person.Id]
-        if ($null -ne $personEmailAddresses) {
-            $person.EmailWork = $personEmailAddresses | Where-Object { $_.Index -eq 1 } | Select-Object -First 1 -ExpandProperty EmailAddress
-            $person.EmailPrivate = $personEmailAddresses | Where-Object { $_.Index -eq 2 } | Select-Object -First 1 -ExpandProperty EmailAddress
+        if ($null -ne $emailAddressesGrouped) {
+            $personEmailAddresses = $emailAddressesGrouped[$person.Id]
+            if ($null -ne $personEmailAddresses) {
+                $person.EmailWork = $personEmailAddresses | Where-Object { $_.Index -eq 1 } | Select-Object -First 1 -ExpandProperty EmailAddress
+                $person.EmailPrivate = $personEmailAddresses | Where-Object { $_.Index -eq 2 } | Select-Object -First 1 -ExpandProperty EmailAddress
+            }
         }
 
         $contractsList = [System.Collections.ArrayList]::new()
@@ -282,7 +290,7 @@ try {
             $employments | Add-Member -MemberType NoteProperty -Name "ManagerPersonNumber" -Value $null -Force
             foreach ($employment in $employments) {
                 $organizationId = $employment.OrganizationId
-                if ($null -ne $organizationId) {
+                if ($null -ne $organizationId -and $null -ne $organizationsGrouped) {
                     $organization = $organizationsGrouped[$organizationId]
                     if ($null -ne $organization) {
                         $employment.OrganizationName = $organization.Name
@@ -290,14 +298,14 @@ try {
                     }
                 }
                 $functionId = $employment.FunctionId
-                if ($null -ne $functionId) {
+                if ($null -ne $functionId -and $null -ne $functionsGrouped) {
                     $function = $functionsGrouped[$functionId]
                     if ($null -ne $function) {
                         $employment.FunctionLongName = $function.LongName
                     }
                 }
                 $managerId = $employment.ManagerId
-                if ($null -ne $managerId) {
+                if ($null -ne $managerId -and $null -ne $personsGrouped) {
                     $manager = $personsGrouped[$managerId]
                     if ($null -ne $manager) {
                         $employment.ManagerPersonNumber = $manager.PersonNumber
@@ -329,7 +337,7 @@ try {
                 # Only add history employment if not already present in current employments to avoid duplicate contracts
                 if ($null -eq ($contractsList | Where-Object { $_.ContractId -eq $historyEmployment.ContractId })) { 
                     $organizationId = $historyEmployment.OrganizationId
-                    if ($null -ne $organizationId) {
+                    if ($null -ne $organizationId -and $null -ne $organizationsGrouped) {
                         $organization = $organizationsGrouped[$organizationId]
                         if ($null -ne $organization) {
                             $historyEmployment.OrganizationName = $organization.Name
@@ -337,14 +345,14 @@ try {
                         }
                     }
                     $functionId = $historyEmployment.FunctionId
-                    if ($null -ne $functionId) {
+                    if ($null -ne $functionId -and $null -ne $functionsGrouped) {
                         $function = $functionsGrouped[$functionId]
                         if ($null -ne $function) {
                             $historyEmployment.FunctionLongName = $function.LongName
                         }
                     }
                     $managerId = $historyEmployment.ManagerId
-                    if ($null -ne $managerId) {
+                    if ($null -ne $managerId -and $null -ne $personsGrouped) {
                         $manager = $personsGrouped[$managerId]
                         if ($null -ne $manager) {
                             $historyEmployment.ManagerPersonNumber = $manager.PersonNumber
@@ -385,11 +393,11 @@ catch {
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-SDworkx-CobraError -ErrorObject $ex
-        Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         Write-Error "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
     }
     else {
-        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
     }
 }

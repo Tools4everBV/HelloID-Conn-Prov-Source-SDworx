@@ -13,12 +13,6 @@ $baseUrl = $config.BaseUrl
 $clientId = $config.ClientId
 $clientSecret = $config.Apikey
 
-# Set debug logging
-switch ($($config.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
-}
-
 #region functions
 function Resolve-SDworkx-CobraError {
     [CmdletBinding()]
@@ -79,7 +73,7 @@ try {
         Authorization = "Bearer $accessToken"
         Accept        = "application/json"
     }
-    Write-Verbose "Access token retrieved successfully."
+    Write-Information "Access token retrieved successfully."
 
     $actionMessage = "retrieving persons"
     $splatPersonsParams = @{
@@ -107,13 +101,11 @@ try {
 
     foreach ($department in $departmentsFiltered) {
         $managerId = $department.ManagerId
-        if ($null -ne $managerId) {
+        $managerPersonNumber = $null
+        if ($null -ne $managerId -and $null -ne $personsGrouped) {
             $manager = $personsGrouped[$managerId]
             if ($null -ne $manager) {
                 $managerPersonNumber = $manager.PersonNumber
-            }
-            else {
-                $managerPersonNumber = $null
             }
         }
 
@@ -138,11 +130,11 @@ catch {
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-SDworkx-CobraError -ErrorObject $ex
-        Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
         Write-Error "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
     }
     else {
-        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
         Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
     }
 }
